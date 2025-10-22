@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chatbot RAG - Trò chuyện với tài liệu</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    #chat-box::-webkit-scrollbar { width: 6px; }
+    #chat-box::-webkit-scrollbar-track { background: #2d3748; }
+    #chat-box::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
+    #chat-box::-webkit-scrollbar-thumb:hover { background: #718096; }
+    .source-content { white-space: pre-wrap; word-break: break-word; }
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(2px);
+      z-index: 50;
+      justify-content: center;
+      align-items: center;
+      color: white;
+      font-size: 1.1rem;
+      flex-direction: column;
+    }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+
+  <div class="bg-gray-800 w-full max-w-3xl rounded-xl shadow-2xl flex flex-col" style="height: 90vh;">
+    <header class="bg-gray-700/50 p-4 border-b border-gray-600 rounded-t-xl flex justify-between items-center">
+      <div>
+        <h1 class="text-xl font-bold text-white text-center">Trò chuyện với tài liệu</h1>
+        <p id="sub-header" class="text-sm text-center text-gray-400 mt-1">Tải lên file PDF hoặc TXT để bắt đầu</p>
+      </div>
+      <button id="reset-btn" class="hidden text-gray-300 hover:text-white text-sm border border-gray-500 rounded px-2 py-1">📁 Đổi tài liệu</button>
+    </header>
+
+    <!-- Nội dung chính -->
+    <main class="flex-1 p-6 flex flex-col overflow-hidden">
+      <!-- Upload -->
+      <div id="upload-container" class="flex flex-col items-center justify-center h-full">
+        <label for="file-input" class="w-full max-w-md border-2 border-dashed border-gray-500 rounded-lg p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-gray-700/50 transition-colors">
+          <div class="flex flex-col items-center">
+            <i data-lucide="upload-cloud" class="w-16 h-16 text-gray-400 mb-4"></i>
+            <span class="font-semibold">Nhấn để chọn file</span>
+            <span class="text-xs text-gray-500 mt-1">Hỗ trợ PDF, TXT</span>
+          </div>
+        </label>
+        <input type="file" id="file-input" class="hidden" accept=".pdf,.txt">
+        <p id="upload-status" class="mt-4 text-sm text-gray-400 h-5"></p>
+      </div>
+
+      <!-- Chat -->
+      <div id="chat-container" class="hidden flex-1 flex flex-col overflow-hidden">
+        <div id="chat-box" class="flex-1 space-y-4 p-4 overflow-y-auto rounded-lg bg-gray-900/50 mb-4"></div>
+        <form id="chat-form" class="flex items-center space-x-3">
+          <input type="text" id="question-input" placeholder="Nhập câu hỏi..." class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 text-white disabled:opacity-50">
+          <button type="submit" id="send-button" class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-800">
+            <i data-lucide="send-horizontal" class="w-6 h-6"></i>
+          </button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <!-- Overlay Loading -->
+  <div id="overlay" class="flex">
+    <i data-lucide="loader-2" class="animate-spin w-10 h-10 mb-3"></i>
+    <span>Đang xử lý tài liệu, vui lòng đợi...</span>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    // --- DOM Elements ---
+    const uploadContainer = document.getElementById('upload-container');
+    const chatContainer = document.getElementById('chat-container');
+    const fileInput = document.getElementById('file-input');
+    const uploadStatus = document.getElementById('upload-status');
+    const subHeader = document.getElementById('sub-header');
+    const resetBtn = document.getElementById('reset-btn');
+
+    const chatBox = document.getElementById('chat-box');
+    const chatForm = document.getElementById('chat-form');
+    const questionInput = document.getElementById('question-input');
+    const sendButton = document.getElementById('send-button');
+    const overlay = document.getElementById('overlay');
+
+    // --- State ---
+    let sessionId = null;
+    let isBotThinking = false;
+    const API_BASE_URL = window.location.origin;
+
+    // --- Event Listeners ---
+    fileInput.addEventListener('change', handleFileUpload);
+    chatForm.addEventListener('submit', handleSendMessage);
+    resetBtn.addEventListener('click', resetSession);
+
+    // --- API ---
+    async function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      uploadStatus.textContent = `Đang tải: ${file.name}...`;
+      overlay.style.display = 'flex';
+
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
+        const data = await res.json();
+        overlay.style.display = 'none';
+
+        if (!res.ok || !data.success) throw new Error(data.message);
+        sessionId = data.session_id;
+
+        uploadStatus.textContent = '✅ Tải lên thành công!';
+        subHeader.textContent = `Đang trò chuyện với: ${file.name}`;
+        resetBtn.classList.remove('hidden');
+
+        setTimeout(() => {
+          uploadContainer.classList.add('hidden');
+          chatContainer.classList.remove('hidden');
+          addMessage('Xin chào! Bạn muốn hỏi gì về tài liệu này?', 'bot');
+        }, 600);
+
+      } catch (err) {
+        console.error(err);
+        overlay.style.display = 'none';
+        uploadStatus.textContent = `❌ Lỗi: ${err.message || 'Không thể kết nối đến máy chủ'}`;
+      }
+    }
+
+    async function handleSendMessage(e) {
+      e.preventDefault();
+      const question = questionInput.value.trim();
+      if (!question || !sessionId || isBotThinking) return;
+
+      addMessage(question, 'user');
+      questionInput.value = '';
+      setChatDisabled(true);
+      addMessage('Bot đang suy nghĩ...', 'bot', [], 'thinking');
+
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/chat`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ session_id: sessionId, question })
+        });
+        const data = await res.json();
+        removeThinking();
+
+        if (!res.ok || !data.success) throw new Error(data.message);
+        addMessage(data.answer, 'bot', data.sources || []);
+      } catch (err) {
+        removeThinking();
+        addMessage(`❌ Lỗi: ${err.message}`, 'bot', [], 'error');
+      } finally {
+        setChatDisabled(false);
+      }
+    }
+
+    // --- UI Helpers ---
+    function addMessage(text, sender, sources = [], id = '') {
+      const wrap = document.createElement('div');
+      wrap.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+      if (id) wrap.id = id;
+
+      const bubble = document.createElement('div');
+      bubble.className = `max-w-md lg:max-w-xl rounded-xl px-4 py-2 ${sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-100'}`;
+      bubble.textContent = text;
+      wrap.appendChild(bubble);
+
+      if (sender === 'bot' && sources.length) {
+        const details = document.createElement('details');
+        details.className = 'mt-2 text-xs';
+        details.innerHTML = `<summary class="cursor-pointer text-gray-400 hover:text-white font-medium">Xem nguồn tham chiếu</summary>`;
+        const box = document.createElement('div');
+        box.className = 'mt-2 space-y-2 p-3 bg-gray-800/50 rounded-lg border border-gray-700';
+
+        sources.forEach((s, i) => {
+          const page = s.metadata.page !== undefined ? ` (trang ${s.metadata.page + 1})` : '';
+          const item = `<div class="border-b border-gray-700 pb-2 last:border-b-0">
+                          <p class="font-semibold text-gray-300">Nguồn ${i+1}${page}:</p>
+                          <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
+                        </div>`;
+          box.innerHTML += item;
+        });
+
+        details.appendChild(box);
+        bubble.appendChild(details);
+      }
+
+      chatBox.appendChild(wrap);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function setChatDisabled(disabled) {
+      isBotThinking = disabled;
+      questionInput.disabled = disabled;
+      sendButton.disabled = disabled;
+    }
+
+    function removeThinking() {
+      const t = document.getElementById('thinking');
+      if (t) t.remove();
+    }
+
+    function resetSession() {
+      sessionId = null;
+      chatBox.innerHTML = '';
+      questionInput.value = '';
+      uploadContainer.classList.remove('hidden');
+      chatContainer.classList.add('hidden');
+      subHeader.textContent = 'Tải lên file PDF hoặc TXT để bắt đầu';
+      resetBtn.classList.add('hidden');
+      uploadStatus.textContent = '';
+    }
+  </script>
+</body>
+</html>
