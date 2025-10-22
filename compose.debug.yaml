@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+  backend:
+    build: .
+    # Ghi đè lệnh chạy mặc định để bật chế độ debug của Flask
+    command: python app_improved.py
+    volumes:
+      # Gắn thư mục hiện tại vào trong container
+      # Mọi thay đổi trong code sẽ được cập nhật ngay lập tức
+      - .:/app
+    ports:
+      - "5000:5000"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+    networks:
+      - rag-net
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    container_name: ollama
+    networks:
+      - rag-net
+
+volumes:
+  ollama_data:
+
+networks:
+  rag-net:
+    driver: bridge

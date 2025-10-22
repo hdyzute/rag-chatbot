@@ -1,0 +1,32 @@
+services:
+  backend:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    volumes:
+      - ./chroma_dbs:/app/chroma_dbs
+    depends_on:
+      - ollama
+    networks:
+      - rag-net
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - rag-net
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+
+networks:
+  rag-net:
+    driver: bridge
