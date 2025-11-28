@@ -2,6 +2,8 @@
 
 A Retrieval-Augmented Generation (RAG) chatbot that combines document retrieval with large language models to provide accurate, context-aware responses.
 
+![Project Demo](https://raw.githubusercontent.com/hdyzute/rag-chatbot/refs/heads/main/demo_ragchatbot.png)
+
 ## Features
 
 - 📄 Document ingestion and processing
