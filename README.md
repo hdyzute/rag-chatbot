@@ -53,19 +53,27 @@ The system integrates with **Ollama (LLaMA3)**, allowing local inference without
 ---
 
 ## 4. Architecture
-
-User
-↓
-Web UI (HTML)
-↓
-Flask API
-↓
-Retriever (ChromaDB)
-↓
-LLM (Ollama - LLaMA3)
-
-
----
+```
+┌─────────────────────┐
+│       User          │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│   Web UI (HTML)     │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│     Flask API       │
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ Retriever (ChromaDB)│
+└──────────┬──────────┘
+           ↓
+┌─────────────────────┐
+│ LLM (Ollama-LLaMA3) │
+└─────────────────────┘
+```
 
 ## 5. Technologies Used
 
