@@ -1,143 +1,111 @@
-# RAG Chatbot
+# RAG-based Document Question Answering Chatbot
 
-A Retrieval-Augmented Generation (RAG) chatbot that combines document retrieval with large language models to provide accurate, context-aware responses.
+An end-to-end **Retrieval-Augmented Generation (RAG) system** that enables users to ask natural language questions over uploaded PDF/TXT documents, designed to reduce hallucination and provide explainable answers with source citations.
 
-![Project Demo](https://raw.githubusercontent.com/hdyzute/rag-chatbot/refs/heads/main/demo_ragchatbot.png)
+![Project Demo](demo_ragchatbot.png)
 
-## Features
+---
 
-- 📄 Document ingestion and processing
-- 🔍 Semantic search using vector embeddings
-- 💬 Conversational AI interface
-- 🐳 Docker containerization for easy deployment
-- 🎨 Web-based user interface
+## 1. Problem Statement
 
-## Tech Stack
+Large Language Models (LLMs) often hallucinate when answering questions outside their training data.  
+This project addresses that limitation by combining **document retrieval** with **generation**, ensuring that responses are grounded in user-provided documents rather than model assumptions.
 
-- **Backend**: Python, Flask/FastAPI
-- **Vector Database**: ChromaDB
-- **LLM Integration**: OpenAI/Anthropic/Local models
-- **Frontend**: HTML, CSS, JavaScript
-- **Containerization**: Docker, Docker Compose
+---
 
-## Prerequisites
+## 2. System Overview
 
-- Python 3.8+
-- Docker and Docker Compose (optional)
-- API keys for LLM services (if using cloud providers)
+The system follows a standard RAG pipeline:
 
-## Installation
+1. **Document Ingestion**  
+   Uploaded PDF/TXT documents are loaded and split into semantic chunks.
 
-### Local Setup
+2. **Vector Indexing**  
+   Each chunk is embedded and stored in a **ChromaDB vector database**.
 
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/rag-chatbot.git
-cd rag-chatbot
-```
+3. **Retrieval**  
+   For each user query, the system retrieves the top-k most relevant document chunks.
 
-2. Create and activate virtual environment:
-```bash
-python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-```
+4. **Answer Generation**  
+   Retrieved context is injected into a constrained prompt to generate an answer using an LLM.
 
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
+5. **Explainability**  
+   Source document segments are returned alongside the answer to improve transparency.
 
-4. Set up environment variables:
-```bash
-cp .env.example .env
-# Edit .env with your API keys and configuration
-```
+---
 
-5. Run the application:
+## 3. Key Design Decisions
+
+### 🔹 Retrieval-Augmented Generation
+Instead of relying solely on an LLM, retrieval ensures answers are grounded in document content, significantly reducing hallucination.
+
+### 🔹 Session-based Vector Stores
+Each user session maintains an isolated vector store to prevent data leakage between users and support concurrent usage.
+
+### 🔹 Prompt Constraints
+The prompt explicitly instructs the model to:
+- Use only retrieved context
+- Respond with “information not found” when relevant data is missing
+
+### 🔹 Local LLM Support
+The system integrates with **Ollama (LLaMA3)**, allowing local inference without dependency on cloud APIs.
+
+---
+
+## 4. Architecture
+
+User
+↓
+Web UI (HTML)
+↓
+Flask API
+↓
+Retriever (ChromaDB)
+↓
+LLM (Ollama - LLaMA3)
+
+
+---
+
+## 5. Technologies Used
+
+- **Backend:** Python, Flask
+- **LLMs:** Ollama (LLaMA3)
+- **Embeddings:** Sentence-Transformers / Ollama Embeddings
+- **Vector Database:** ChromaDB
+- **Frontend:** HTML, CSS, JavaScript
+- **Deployment:** Docker, Docker Compose
+
+---
+
+## 6. Limitations & Future Improvements
+
+- No reranking mechanism for retrieved chunks
+- Limited long-context handling for very large documents
+- No conversation memory across turns
+
+Planned improvements include conversational RAG, reranking, and improved evaluation metrics.
+
+---
+
+## 7. Running the Project (Optional)
+
+### Local
 ```bash
 python app.py
-```
 
-6. Open your browser and navigate to `http://localhost:5000`
+### Docker
 
-### Docker Setup
-
-1. Build and run with Docker Compose:
 ```bash
 docker-compose up --build
 ```
 
-2. Access the application at `http://localhost:5000`
+## 8. Why This Project Matters
 
-## Usage
+This project demonstrates the ability to:
 
-1. **Upload Documents**: Add your documents through the web interface
-2. **Ask Questions**: Type your questions in the chat interface
-3. **Get Answers**: The chatbot will retrieve relevant information and generate responses
+- Design and implement end-to-end AI systems
 
-## Project Structure
+- Apply LLMs responsibly using retrieval grounding
 
-```
-rag-chatbot/
-├── app.py                 # Main application file
-├── index.html            # Frontend interface
-├── requirements.txt      # Python dependencies
-├── Dockerfile           # Docker configuration
-├── compose.yaml         # Docker Compose setup
-├── .dockerignore        # Docker ignore rules
-├── .gitignore          # Git ignore rules
-└── chroma_dbs/         # Vector database storage (gitignored)
-```
-
-## Configuration
-
-Edit `.env` file to configure:
-- API keys for LLM services
-- Database settings
-- Server port and host
-- Model parameters
-
-## Development
-
-### Debug Mode
-
-Run with debug mode enabled:
-```bash
-docker-compose -f compose.debug.yaml up
-```
-
-### Adding New Features
-
-1. Create a new branch
-2. Make your changes
-3. Test thoroughly
-4. Submit a pull request
-
-## Troubleshooting
-
-**Issue**: ChromaDB connection errors
-- **Solution**: Ensure the database directory exists and has proper permissions
-
-**Issue**: API key errors
-- **Solution**: Verify your API keys in the `.env` file
-
-**Issue**: Docker build fails
-- **Solution**: Check Docker daemon is running and you have sufficient disk space
-
-## Contributing
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Acknowledgments
-
-- ChromaDB for vector storage
-- OpenAI/Anthropic for LLM capabilities
-- The open-source community
+- Deploy AI models as production-style web services
