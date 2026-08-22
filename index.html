@@ -157,7 +157,7 @@
         removeThinking();
 
         if (!res.ok || !data.success) throw new Error(data.message);
-        addMessage(data.answer, 'bot', data.sources || []);
+        addMessage(data.answer, 'bot', data.sources || [], '', data.action);
       } catch (err) {
         removeThinking();
         addMessage(`❌ Lỗi: ${err.message}`, 'bot', [], 'error');
@@ -167,34 +167,74 @@
     }
 
     // --- UI Helpers ---
-    function addMessage(text, sender, sources = [], id = '') {
+    function addMessage(text, sender, sources = [], id = '', action = '') {
       const wrap = document.createElement('div');
       wrap.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
       if (id) wrap.id = id;
 
       const bubble = document.createElement('div');
       bubble.className = `max-w-md lg:max-w-xl rounded-xl px-4 py-2 ${sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-100'}`;
-      bubble.textContent = text;
+      
+      // Hiển thị Action Badge nếu có
+      if (sender === 'bot' && action) {
+        let actionBadge = '';
+        let badgeColor = '';
+        if (action === 'RETRIEVE') {
+          actionBadge = '📁 Đọc tài liệu';
+          badgeColor = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
+        } else if (action === 'WEB_SEARCH') {
+          actionBadge = '🌐 Tìm kiếm Web';
+          badgeColor = 'bg-blue-900/50 text-blue-300 border-blue-700/50';
+        } else if (action === 'DIRECT') {
+          actionBadge = '💬 Trả lời trực tiếp';
+          badgeColor = 'bg-purple-900/50 text-purple-300 border-purple-700/50';
+        }
+        
+        const badgeDiv = document.createElement('div');
+        badgeDiv.className = `inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full border mb-1.5 font-semibold ${badgeColor}`;
+        badgeDiv.textContent = actionBadge;
+        bubble.appendChild(badgeDiv);
+      }
+
+      const textDiv = document.createElement('div');
+      textDiv.className = 'whitespace-pre-wrap';
+      textDiv.textContent = text;
+      bubble.appendChild(textDiv);
       wrap.appendChild(bubble);
 
       if (sender === 'bot' && sources.length) {
         const details = document.createElement('details');
-        details.className = 'mt-2 text-xs';
-        details.innerHTML = `<summary class="cursor-pointer text-gray-400 hover:text-white font-medium">Xem nguồn tham chiếu</summary>`;
+        details.className = 'mt-2 text-xs border-t border-gray-500/30 pt-1.5';
+        details.innerHTML = `<summary class="cursor-pointer text-gray-400 hover:text-white font-medium flex items-center select-none">Xem nguồn tham chiếu <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-1"></i></summary>`;
         const box = document.createElement('div');
-        box.className = 'mt-2 space-y-2 p-3 bg-gray-800/50 rounded-lg border border-gray-700';
+        box.className = 'mt-2 space-y-2.5 p-3 bg-gray-900/55 rounded-lg border border-gray-700/50';
 
         sources.forEach((s, i) => {
-          const page = s.metadata.page !== undefined ? ` (trang ${s.metadata.page + 1})` : '';
-          const item = `<div class="border-b border-gray-700 pb-2 last:border-b-0">
-                          <p class="font-semibold text-gray-300">Nguồn ${i+1}${page}:</p>
-                          <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
-                        </div>`;
-          box.innerHTML += item;
+          if (s.type === 'web') {
+            const item = `<div class="border-b border-gray-800 pb-2 last:border-b-0 last:pb-0">
+                            <p class="font-semibold text-gray-300 flex items-center flex-wrap">Nguồn ${i+1}: 
+                              <a href="${s.url}" target="_blank" class="text-blue-400 hover:underline inline-flex items-center ml-1 font-normal break-all">
+                                ${s.title} <i data-lucide="external-link" class="w-3 h-3 ml-0.5"></i>
+                              </a>
+                            </p>
+                            <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
+                          </div>`;
+            box.innerHTML += item;
+          } else {
+            const page = s.metadata && s.metadata.page !== undefined ? ` (trang ${s.metadata.page + 1})` : '';
+            const item = `<div class="border-b border-gray-800 pb-2 last:border-b-0 last:pb-0">
+                            <p class="font-semibold text-gray-300">Nguồn ${i+1}${page}:</p>
+                            <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
+                          </div>`;
+            box.innerHTML += item;
+          }
         });
 
         details.appendChild(box);
         bubble.appendChild(details);
+        
+        // Cập nhật biểu tượng lucide
+        setTimeout(() => { lucide.createIcons(); }, 50);
       }
 
       chatBox.appendChild(wrap);

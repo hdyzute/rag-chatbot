@@ -1,119 +1,51 @@
-# RAG-based Document Question Answering Chatbot
+﻿# Local RAG Chatbot with Hybrid Search & Agentic Routing
 
-An end-to-end **Retrieval-Augmented Generation (RAG) system** that enables users to ask natural language questions over uploaded PDF/TXT documents, designed to reduce hallucination and provide explainable answers with source citations.
+A session-based RAG chatbot built with Flask, LangChain, and Ollama. It runs entirely locally for data privacy and features an intelligent routing system to seamlessly switch between document retrieval, web search, and direct conversation.
 
-![Project Demo](demo_ragchatbot.png)
+## Features
 
----
+* **Hybrid Search Retrieval**: Combines semantic search (ChromaDB) and sparse keyword search (BM25) via an Ensemble Retriever. This solves the common issue of vector databases failing at exact keyword matches, ensuring high accuracy when retrieving specific product codes or financial figures.
+* **Agentic Query Routing**: Uses the local LLM to classify user intents and route queries to either `RETRIEVE` (document search), `WEB_SEARCH` (DuckDuckGo integration for real-time information), or `DIRECT` (general chat).
+* **Automated Evaluation Pipeline**: Includes a standalone `evaluate.py` script implementing an LLM-as-a-judge framework. It automatically benchmarks Context Relevance, Faithfulness, and Answer Relevance against a ground-truth dataset (e.g., corporate annual reports).
+* **Contextual Memory**: Maintains chat history per session and leverages a rephrase chain to convert follow-up questions into standalone queries, optimizing retrieval performance.
 
-## 1. Problem Statement
+## Tech Stack
 
-Large Language Models (LLMs) often hallucinate when answering questions outside their training data.  
-This project addresses that limitation by combining **document retrieval** with **generation**, ensuring that responses are grounded in user-provided documents rather than model assumptions.
+* **Backend**: Flask
+* **Orchestration**: LangChain (LCEL architecture)
+* **Local LLM & Embeddings**: Ollama (`qwen2.5:3b` for generation/routing, `nomic-embed-text` for vector embeddings)
+* **Database**: ChromaDB (persistent storage per session)
+* **Keyword Search**: rank_bm25
+* **Web Search**: DuckDuckGo API
 
----
+## Setup Instructions
 
-## 2. System Overview
-
-The system follows a standard RAG pipeline:
-
-1. **Document Ingestion**  
-   Uploaded PDF/TXT documents are loaded and split into semantic chunks.
-
-2. **Vector Indexing**  
-   Each chunk is embedded and stored in a **ChromaDB vector database**.
-
-3. **Retrieval**  
-   For each user query, the system retrieves the top-k most relevant document chunks.
-
-4. **Answer Generation**  
-   Retrieved context is injected into a constrained prompt to generate an answer using an LLM.
-
-5. **Explainability**  
-   Source document segments are returned alongside the answer to improve transparency.
-
----
-
-## 3. Key Design Decisions
-
-### 🔹 Retrieval-Augmented Generation
-Instead of relying solely on an LLM, retrieval ensures answers are grounded in document content, significantly reducing hallucination.
-
-### 🔹 Session-based Vector Stores
-Each user session maintains an isolated vector store to prevent data leakage between users and support concurrent usage.
-
-### 🔹 Prompt Constraints
-The prompt explicitly instructs the model to:
-- Use only retrieved context
-- Respond with “information not found” when relevant data is missing
-
-### 🔹 Local LLM Support
-The system integrates with **Ollama (LLaMA3)**, allowing local inference without dependency on cloud APIs.
-
----
-
-## 4. Architecture
+1. Install Python 3.11 or 3.12 (Highly recommended for optimal compatibility with underlying C-extensions on Windows).
+2. Install [Ollama](https://ollama.com/) and download the required models by running:
+```bash
+ollama pull qwen2.5:3b
+ollama pull nomic-embed-text
 ```
-┌─────────────────────┐
-│       User          │
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│   Web UI (HTML)     │
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│     Flask API       │
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ Retriever (ChromaDB)│
-└──────────┬──────────┘
-           ↓
-┌─────────────────────┐
-│ LLM (Ollama-LLaMA3) │
-└─────────────────────┘
+3. Clone the repository and navigate into it.
+4. Create a virtual environment and install the dependencies:
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 ```
 
-## 5. Technologies Used
+## Running the Application
 
-- **Backend:** Python, Flask
-- **LLMs:** Ollama (LLaMA3)
-- **Embeddings:** Sentence-Transformers / Ollama Embeddings
-- **Vector Database:** ChromaDB
-- **Frontend:** HTML, CSS, JavaScript
-- **Deployment:** Docker, Docker Compose
-
----
-
-## 6. Limitations & Future Improvements
-
-- No reranking mechanism for retrieved chunks
-- Limited long-context handling for very large documents
-- No conversation memory across turns
-
-Planned improvements include conversational RAG, reranking, and improved evaluation metrics.
-
----
-
-## 7. Running the Project (Optional)
-
-### Local
+Start the backend server:
 ```bash
 python app.py
-
-### Docker
-
-```bash
-docker-compose up --build
 ```
+Then, simply open the `index.html` file in your web browser to access the chat interface.
 
-## 8. Why This Project Matters
+## Running the Evaluation
 
-This project demonstrates the ability to:
-
-- Design and implement end-to-end AI systems
-
-- Apply LLMs responsibly using retrieval grounding
-
-- Deploy AI models as production-style web services
+To benchmark the RAG pipeline using the included sample corporate dataset, run:
+```bash
+python evaluate.py
+```
+The script will output the evaluation process to the console and save detailed metrics to `evaluation_results.json`.

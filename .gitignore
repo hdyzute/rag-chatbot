@@ -19,3 +19,7 @@ dist/
 # IDE settings
 .vscode/
 .idea/
+
+# Database and Session data
+chroma_db/
+session_data/
