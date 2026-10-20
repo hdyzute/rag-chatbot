@@ -22,4 +22,6 @@ dist/
 
 # Database and Session data
 chroma_db/
+chroma_dbs/
+chroma_legal_kb/
 session_data/

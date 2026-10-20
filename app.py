@@ -1,449 +1,221 @@
 import os
 import uuid
 import time
-import tempfile
+import json
 import logging
-from threading import Thread
+import tempfile
+from typing import Dict, Any
+
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-from langchain_community.document_loaders import PyPDFLoader, TextLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_chroma import Chroma
-from langchain_ollama import OllamaLLM, OllamaEmbeddings
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.output_parsers import StrOutputParser
-from langchain_core.messages import HumanMessage, AIMessage
-from langchain_community.retrievers import BM25Retriever
-from langchain_classic.retrievers import EnsembleRetriever
-from duckduckgo_search import DDGS
+from pypdf import PdfReader
 
-# =========================
-# 🔧 CẤU HÌNH & KHỞI TẠO
-# =========================
+from legal_engine import LegalClauseParser, LegalKnowledgeBase, ContractAuditor
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_ollama import OllamaLLM
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
 logging.basicConfig(level=logging.INFO)
-app = Flask(__name__)
+logger = logging.getLogger("VietGuard_App")
+
+app = Flask(__name__, static_folder=".", static_url_path="")
 CORS(app)
 
-# Cấu hình bảo mật file upload
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
-ALLOWED_EXTENSIONS = {'pdf', 'txt'}
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # 15MB
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+# Khởi tạo Knowledge Base & Auditor
+logger.info("Khởi động VietGuard AI Engine...")
+LEGAL_KB = LegalKnowledgeBase(kb_dir="knowledge_base", persist_dir="chroma_legal_kb")
+AUDITOR = ContractAuditor(LEGAL_KB)
+CHAT_LLM = OllamaLLM(model="qwen2.5:3b", base_url="http://localhost:11434", temperature=0.2)
 
-@app.errorhandler(413)
-def request_entity_too_large(error):
-    return jsonify({"success": False, "message": "Kích thước file quá lớn (Tối đa 10MB)"}), 413
+# Quản lý Session trên RAM (kèm thời gian hết hạn)
+SESSIONS: Dict[str, Dict[str, Any]] = {}
+SESSION_EXPIRY = 3600  # 1 giờ
 
-SESSION_TIMEOUT = 3600
-CHROMA_DIR = "./chroma_dbs"
-os.makedirs(CHROMA_DIR, exist_ok=True)
+def cleanup_old_sessions():
+    now = time.time()
+    expired = [sid for sid, s in SESSIONS.items() if now - s.get("last_active", 0) > SESSION_EXPIRY]
+    for sid in expired:
+        del SESSIONS[sid]
 
-SESSIONS = {}
-
-# Lấy Ollama base URL từ environment
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-
-# =========================
-# 📌 TẢI MODEL MỘT LẦN
-# =========================
-try:
-    logging.info("🚀 Đang kết nối Ollama Embeddings...")
-    EMBEDDINGS_MODEL = OllamaEmbeddings(
-        base_url=OLLAMA_BASE_URL,
-        model="nomic-embed-text"  # Model embedding nhỏ gọn
-    )
-    logging.info("✅ Embedding model sẵn sàng.")
-
-    logging.info(f"🚀 Đang kết nối Ollama LLM tại {OLLAMA_BASE_URL}...")
-    LLM = OllamaLLM(model="qwen2.5:3b", temperature=0.3, base_url=OLLAMA_BASE_URL)
-    LLM.invoke("ping")
-    logging.info("✅ LLM sẵn sàng.")
-except Exception as e:
-    logging.error(f"❌ Lỗi tải model: {e}")
-    EMBEDDINGS_MODEL = None
-    LLM = None
-
-# =========================
-# 🧠 CLASS CHATBOT
-# =========================
-class RAGChatbot:
-    def __init__(self, embeddings_model, llm, session_id):
-        self.embeddings = embeddings_model
-        self.llm = llm
-        self.vectorstore = None
-        self.bm25_retriever = None
-        self.ensemble_retriever = None
-        self.session_id = session_id
-        self.last_access = time.time()
-        self.history = []  # Lưu lịch sử chat (tối đa 5 lượt)
-        logging.info(f"🔸 Khởi tạo chatbot cho session {session_id}")
-
-    def load_and_index(self, file_path):
-        try:
-            # --- Load tài liệu ---
-            if file_path.endswith('.pdf'):
-                loader = PyPDFLoader(file_path)
-            elif file_path.endswith('.txt'):
-                loader = TextLoader(file_path, encoding='utf-8')
-            else:
-                raise ValueError("❌ Chỉ hỗ trợ file .pdf hoặc .txt")
-
-            documents = loader.load()
-            logging.info(f"📄 Đã tải {len(documents)} trang từ tài liệu.")
-
-            # --- Chia nhỏ ---
-            splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=150)
-            chunks = splitter.split_documents(documents)
-            logging.info(f"✂️ Đã chia thành {len(chunks)} đoạn.")
-
-            # --- Lưu vào Chroma persistent ---
-            persist_dir = os.path.join(CHROMA_DIR, self.session_id)
-            self.vectorstore = Chroma.from_documents(
-                documents=chunks,
-                embedding=self.embeddings,
-                persist_directory=persist_dir
-            )
-            
-            # --- Tạo Hybrid Retriever (Vector + Keyword) ---
-            self.bm25_retriever = BM25Retriever.from_documents(chunks)
-            self.bm25_retriever.k = 3
-            
-            vector_retriever = self.vectorstore.as_retriever(search_kwargs={"k": 3})
-            
-            self.ensemble_retriever = EnsembleRetriever(
-                retrievers=[self.bm25_retriever, vector_retriever],
-                weights=[0.4, 0.6]
-            )
-            
-            logging.info(f"✅ Tạo Hybrid Vectorstore thành công cho session {self.session_id}")
-            return True
-        except Exception as e:
-            logging.error(f"❌ Lỗi khi xử lý tài liệu: {e}")
-            return False
-
-    def chat(self, question):
-        self.last_access = time.time()
-        if not self.ensemble_retriever:
-            return {"error": "Vectorstore chưa được khởi tạo."}
-
-        logging.info(f"🤖 [{self.session_id}] Q: {question}")
-        
-        # 1. Phân loại câu hỏi sử dụng Router LLM Chain
-        decision = "DIRECT"
-        try:
-            history_str = ""
-            if self.history:
-                history_str = "\n".join([f"Q: {q}\nA: {a}" for q, a in self.history])
-
-            router_chain = (
-                ChatPromptTemplate.from_messages([
-                    ("system", """Bạn là một AI Router Agent thông minh. Nhiệm vụ của bạn là phân tích câu hỏi của người dùng và chọn ra phương thức xử lý phù hợp nhất.
-Trả về chính xác một trong ba từ khóa sau dưới dạng viết hoa (không thêm bất kỳ từ nào khác, không viết hoa thường, không giải thích, không chứa dấu câu):
-- RETRIEVE: Nếu câu hỏi liên quan trực tiếp đến nội dung, thông tin hoặc chi tiết nằm trong tài liệu đã tải lên.
-- WEB_SEARCH: Nếu câu hỏi hỏi về các thông tin thực tế, thời sự, thời tiết, tin tức sự kiện mới, nhân vật nổi tiếng hoặc kiến thức rộng lớn ngoài tài liệu.
-- DIRECT: Nếu câu hỏi là chào hỏi, cảm ơn, hỏi thăm xã giao, hoặc hỏi về bản thân bạn (AI).
-
-Lịch sử trò chuyện:
-{chat_history}"""),
-                    ("human", "{question}"),
-                    ("system", "Phân loại (chỉ trả về một từ duy nhất: RETRIEVE, WEB_SEARCH hoặc DIRECT):")
-                ])
-                | self.llm
-                | StrOutputParser()
-            )
-            raw_decision = router_chain.invoke({
-                "chat_history": history_str,
-                "question": question
-            })
-            decision = raw_decision.strip().upper()
-            logging.info(f"🧠 Agent decision: {decision}")
-        except Exception as e:
-            logging.error(f"❌ Lỗi phân loại câu hỏi: {e}")
-            decision = "DIRECT"
-
-        # 2. Xử lý câu hỏi dựa trên quyết định phân loại
-        sources = []
-        answer = ""
-        action = "DIRECT"
-
-        if "RETRIEVE" in decision:
-            action = "RETRIEVE"
-            logging.info("🎯 Agent quyết định: RETRIEVE (Truy xuất tài liệu)")
-            
-            # Tái cấu trúc câu hỏi độc lập (rephrase) nếu có lịch sử
-            standalone_question = question
-            if self.history:
-                try:
-                    history_msgs = []
-                    for q, a in self.history:
-                        history_msgs.append(HumanMessage(content=q))
-                        history_msgs.append(AIMessage(content=a))
-
-                    rephrase_chain = (
-                        ChatPromptTemplate.from_messages([
-                            ("system", "Dựa trên lịch sử trò chuyện và câu hỏi mới nhất, hãy tạo một câu hỏi độc lập (standalone question) bằng tiếng Việt để truy xuất thông tin từ tài liệu. Chỉ trả về câu hỏi độc lập đó, không thêm bất kỳ văn bản nào khác."),
-                            MessagesPlaceholder(variable_name="chat_history"),
-                            ("human", "{question}")
-                        ])
-                        | self.llm
-                        | StrOutputParser()
-                    )
-                    standalone_question = rephrase_chain.invoke({
-                        "chat_history": history_msgs,
-                        "question": question
-                    }).strip()
-                    logging.info(f"🔄 Standalone retrieval query: {standalone_question}")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi rephrase câu hỏi: {e}")
-                    standalone_question = question
-
-            # Truy xuất Hybrid DB
-            try:
-                docs = self.ensemble_retriever.invoke(standalone_question)
-                # Ensemble Retriever có thể trả về nhiều hơn k, giới hạn lại top 4
-                docs = docs[:4]
-            except Exception as e:
-                logging.error(f"❌ Lỗi truy xuất Hybrid Search: {e}")
-                docs = []
-
-            context = "\n\n".join([doc.page_content for doc in docs])
-
-            # Trả lời dựa trên ngữ cảnh tài liệu
-            try:
-                qa_prompt = ChatPromptTemplate.from_messages([
-                    ("system", """Sử dụng những thông tin tài liệu được cung cấp dưới đây để trả lời câu hỏi của người dùng một cách chính xác.
-Nếu không có thông tin tương ứng trong tài liệu, hãy trả lời: 'Tôi không tìm thấy thông tin này trong tài liệu.' và dừng lại. Tuyệt đối không tự bịa đặt thông tin.
-
-Thông tin tài liệu:
-{context}"""),
-                    MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{question}")
-                ])
-
-                history_msgs = []
-                for q, a in self.history:
-                    history_msgs.append(HumanMessage(content=q))
-                    history_msgs.append(AIMessage(content=a))
-
-                qa_chain = qa_prompt | self.llm | StrOutputParser()
-                answer = qa_chain.invoke({
-                    "context": context,
-                    "chat_history": history_msgs,
-                    "question": question
-                })
-            except Exception as e:
-                logging.error(f"❌ Lỗi trả lời RAG: {e}")
-                answer = f"Không thể xử lý câu trả lời từ tài liệu: {e}"
-
-            sources = [
-                {"type": "document", "content": doc.page_content, "metadata": doc.metadata}
-                for doc in docs
-            ]
-
-        elif "WEB_SEARCH" in decision:
-            action = "WEB_SEARCH"
-            logging.info("🎯 Agent quyết định: WEB_SEARCH (Tìm kiếm Internet)")
-            
-            # Tạo từ khóa tìm kiếm tối ưu dựa trên câu hỏi và lịch sử
-            search_query = question
-            if self.history:
-                try:
-                    history_msgs = []
-                    for q, a in self.history:
-                        history_msgs.append(HumanMessage(content=q))
-                        history_msgs.append(AIMessage(content=a))
-
-                    query_chain = (
-                        ChatPromptTemplate.from_messages([
-                            ("system", "Dựa trên lịch sử trò chuyện và câu hỏi mới nhất, hãy tạo một câu truy vấn ngắn gọn bằng tiếng Việt để tìm kiếm thông tin mới nhất trên công cụ tìm kiếm. Chỉ trả về từ khóa tìm kiếm đó, không thêm bất kỳ văn bản nào khác."),
-                            MessagesPlaceholder(variable_name="chat_history"),
-                            ("human", "{question}")
-                        ])
-                        | self.llm
-                        | StrOutputParser()
-                    )
-                    search_query = query_chain.invoke({
-                        "chat_history": history_msgs,
-                        "question": question
-                    }).strip()
-                    logging.info(f"🔄 Web Search Query: {search_query}")
-                except Exception as e:
-                    logging.error(f"❌ Lỗi sinh từ khóa tìm kiếm: {e}")
-                    search_query = question
-
-            # Thực hiện tìm kiếm trên DuckDuckGo
-            search_results = []
-            try:
-                with DDGS() as ddgs:
-                    results = list(ddgs.text(search_query, max_results=3))
-                    search_results = results
-            except Exception as e:
-                logging.error(f"❌ Lỗi tìm kiếm DuckDuckGo: {e}")
-
-            # Thiết lập ngữ cảnh từ kết quả tìm kiếm web
-            context_list = []
-            for r in search_results:
-                context_list.append(f"Tiêu đề: {r.get('title')}\nĐường dẫn: {r.get('href')}\nTóm tắt: {r.get('body')}")
-            context = "\n\n---\n\n".join(context_list)
-
-            # Trả lời dựa trên thông tin tìm kiếm
-            try:
-                web_prompt = ChatPromptTemplate.from_messages([
-                    ("system", """Bạn là một trợ lý AI thông minh. Sử dụng kết quả tìm kiếm Internet dưới đây để trả lời câu hỏi của người dùng một cách chính xác và khách quan nhất.
-Hãy giải thích thông tin rõ ràng và dẫn nguồn tham khảo nếu cần.
-
-Kết quả tìm kiếm Internet:
-{context}"""),
-                    MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{question}")
-                ])
-
-                history_msgs = []
-                for q, a in self.history:
-                    history_msgs.append(HumanMessage(content=q))
-                    history_msgs.append(AIMessage(content=a))
-
-                web_chain = web_prompt | self.llm | StrOutputParser()
-                answer = web_chain.invoke({
-                    "context": context,
-                    "chat_history": history_msgs,
-                    "question": question
-                })
-            except Exception as e:
-                logging.error(f"❌ Lỗi trả lời từ Web: {e}")
-                answer = f"Không thể xử lý câu trả lời từ kết quả tìm kiếm: {e}"
-
-            sources = [
-                {"type": "web", "title": r.get("title"), "url": r.get("href"), "content": r.get("body")}
-                for r in search_results
-            ]
-
-        else:
-            action = "DIRECT"
-            logging.info("🎯 Agent quyết định: DIRECT (Trò chuyện trực tiếp)")
-            
-            # Trả lời trực tiếp qua kiến thức chung của mô hình
-            try:
-                direct_prompt = ChatPromptTemplate.from_messages([
-                    ("system", "Bạn là một trợ lý AI thông minh và hữu ích. Hãy trò chuyện với người dùng một cách thân thiện, lịch sự và tự nhiên nhất."),
-                    MessagesPlaceholder(variable_name="chat_history"),
-                    ("human", "{question}")
-                ])
-
-                history_msgs = []
-                for q, a in self.history:
-                    history_msgs.append(HumanMessage(content=q))
-                    history_msgs.append(AIMessage(content=a))
-
-                direct_chain = direct_prompt | self.llm | StrOutputParser()
-                answer = direct_chain.invoke({
-                    "chat_history": history_msgs,
-                    "question": question
-                })
-            except Exception as e:
-                logging.error(f"❌ Lỗi trò chuyện trực tiếp: {e}")
-                answer = f"Không thể xử lý câu trả lời trực tiếp: {e}"
-
-        # 3. Lưu lại lịch sử hội thoại
-        self.history.append((question, answer))
-        if len(self.history) > 5:
-            self.history.pop(0)
-
-        return {
-            "action": action,
-            "answer": answer,
-            "sources": sources
-        }
-
-# =========================
-# 🧹 DỌN SESSION CŨ
-# =========================
-def cleanup_sessions():
-    while True:
-        now = time.time()
-        expired_sessions = [
-            sid for sid, bot in list(SESSIONS.items())
-            if now - bot.last_access > SESSION_TIMEOUT
-        ]
-        for sid in expired_sessions:
-            logging.info(f"🧹 Dọn session {sid} do hết hạn.")
-            # Xóa vectorstore trên ổ đĩa
-            persist_dir = os.path.join(CHROMA_DIR, sid)
-            if os.path.exists(persist_dir):
-                for root, dirs, files in os.walk(persist_dir, topdown=False):
-                    for name in files:
-                        os.remove(os.path.join(root, name))
-                    for name in dirs:
-                        os.rmdir(os.path.join(root, name))
-                os.rmdir(persist_dir)
-            SESSIONS.pop(sid, None)
-        time.sleep(60)
-
-Thread(target=cleanup_sessions, daemon=True).start()
-
-# =========================
-# 🌐 API ENDPOINTS
-# =========================
-@app.route('/')
+@app.route("/")
 def index():
-    return send_from_directory('.', 'index.html')
+    return send_from_directory(".", "index.html")
 
-@app.route('/api/upload', methods=['POST'])
-def upload_file():
-    if not EMBEDDINGS_MODEL or not LLM:
-        return jsonify({"success": False, "message": "Model chưa sẵn sàng. Hãy chạy lệnh 'ollama pull qwen2.5:3b' và 'ollama pull nomic-embed-text' trước."}), 503
+@app.route("/api/sample-contracts", methods=["GET"])
+def get_sample_contracts():
+    samples = [
+        {
+            "id": "sample_rental",
+            "title": "Hợp đồng thuê phòng trọ (Bẫy cọc & tiền điện)",
+            "category": "Thuê nhà",
+            "filename": "hop_dong_thue_nha_bay_coc.txt",
+            "description": "Chứa các bẫy thực tế: Tịch thu 100% cọc vô điều kiện, giá điện 4.500đ/kWh, chủ nhà tự ý vào phòng."
+        },
+        {
+            "id": "sample_labor",
+            "title": "Hợp đồng lao động & Cam kết đào tạo (Bẫy giữ bằng & phạt tiền)",
+            "category": "Lao động",
+            "filename": "hop_dong_lao_dong_bay_giay_to_phat_tien.txt",
+            "description": "Chứa các bẫy trái luật: Giữ CCCD và bằng gốc, thử việc 90 ngày, phạt tiền đi trễ, phạt 60 triệu đào tạo."
+        }
+    ]
+    return jsonify({"success": True, "samples": samples})
 
-    file = request.files.get('file')
-    if not file or file.filename == '':
-        return jsonify({"success": False, "message": "Thiếu file"}), 400
+@app.route("/api/sample-contract/<contract_id>", methods=["GET"])
+def get_sample_content(contract_id):
+    filename_map = {
+        "sample_rental": "hop_dong_thue_nha_bay_coc.txt",
+        "sample_labor": "hop_dong_lao_dong_bay_giay_to_phat_tien.txt"
+    }
+    if contract_id not in filename_map:
+        return jsonify({"success": False, "message": "Không tìm thấy hợp đồng mẫu."}), 404
+        
+    path = os.path.join("sample_contracts", filename_map[contract_id])
+    if not os.path.exists(path):
+        return jsonify({"success": False, "message": "File không tồn tại."}), 404
+        
+    with open(path, "r", encoding="utf-8") as f:
+        content = f.read()
+        
+    return jsonify({"success": True, "contract_text": content})
 
-    if not allowed_file(file.filename):
-        return jsonify({"success": False, "message": "Định dạng file không được hỗ trợ (Chỉ nhận PDF và TXT)"}), 400
-
-    suffix = os.path.splitext(file.filename)[1].lower()
-    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
-        file.save(tmp.name)
-        file_path = tmp.name
-
-    try:
-        session_id = str(uuid.uuid4())
-        chatbot = RAGChatbot(embeddings_model=EMBEDDINGS_MODEL, llm=LLM, session_id=session_id)
-        if chatbot.load_and_index(file_path):
-            SESSIONS[session_id] = chatbot
-            return jsonify({"success": True, "session_id": session_id, "message": "Tài liệu đã được xử lý."})
+@app.route("/api/audit", methods=["POST"])
+def audit_contract_endpoint():
+    cleanup_old_sessions()
+    
+    contract_text = ""
+    contract_type = "Tự động phát hiện"
+    
+    # 1. Đọc từ file upload hoặc text gửi lên
+    if "file" in request.files:
+        uploaded_file = request.files["file"]
+        if uploaded_file.filename == "":
+            return jsonify({"success": False, "message": "File không hợp lệ."}), 400
+            
+        fname = uploaded_file.filename.lower()
+        if fname.endswith(".pdf"):
+            try:
+                reader = PdfReader(uploaded_file.stream)
+                text_pages = [page.extract_text() for page in reader.pages if page.extract_text()]
+                contract_text = "\n\n".join(text_pages)
+            except Exception as e:
+                return jsonify({"success": False, "message": f"Lỗi đọc file PDF: {str(e)}"}), 400
+        elif fname.endswith(".txt") or fname.endswith(".md"):
+            contract_text = uploaded_file.read().decode("utf-8", errors="ignore")
         else:
-            return jsonify({"success": False, "message": "Xử lý tài liệu thất bại"}), 500
-    except Exception as e:
-        logging.error(f"❌ Lỗi upload: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
-    finally:
-        os.remove(file_path)
+            return jsonify({"success": False, "message": "Hệ thống hỗ trợ file .pdf hoặc .txt"}), 400
+    else:
+        data = request.get_json(silent=True) or {}
+        contract_text = data.get("contract_text", "").strip()
+        contract_type = data.get("contract_type", "Tự động phát hiện")
 
-@app.route('/api/chat', methods=['POST'])
-def handle_chat():
-    data = request.json
-    session_id = data.get('session_id')
-    question = data.get('question', '').strip()
+    if not contract_text or len(contract_text) < 50:
+        return jsonify({"success": False, "message": "Nội dung hợp đồng quá ngắn hoặc không có chữ."}), 400
+
+    # Phán đoán loại hợp đồng nếu để tự động
+    lower_text = contract_text.lower()
+    if "lao động" in lower_text or "lương" in lower_text or "thử việc" in lower_text:
+        contract_type = "Hợp đồng lao động"
+    elif "thuê nhà" in lower_text or "phòng trọ" in lower_text or "tiền phòng" in lower_text:
+        contract_type = "Hợp đồng thuê nhà"
+
+    logger.info(f"Bắt đầu audit hợp đồng ({contract_type})...")
+    audit_result = AUDITOR.audit_contract(contract_text, contract_type=contract_type)
+    
+    # Khởi tạo session cho phép hỏi đáp về hợp đồng này
+    session_id = str(uuid.uuid4())
+    clauses = audit_result["clauses"]
+    
+    # Tạo vectorstore tạm trên RAM cho các điều khoản của hợp đồng
+    clause_docs = [
+        Document(
+            page_content=f"{c.get('clause_id', '')} - {c.get('title', '')}:\n{c.get('original_content', '')}",
+            metadata={"clause_id": c.get("clause_id", ""), "risk_level": c.get("risk_level", "GREEN")}
+        )
+        for c in clauses
+    ]
+    
+    contract_vectorstore = Chroma.from_documents(
+        documents=clause_docs,
+        embedding=LEGAL_KB.embeddings
+    )
+    
+    SESSIONS[session_id] = {
+        "contract_type": contract_type,
+        "raw_text": contract_text,
+        "clauses": clauses,
+        "vectorstore": contract_vectorstore,
+        "last_active": time.time(),
+        "chat_history": []
+    }
+
+    return jsonify({
+        "success": True,
+        "session_id": session_id,
+        "contract_type": contract_type,
+        "overall_status": audit_result["overall_status"],
+        "summary_stats": audit_result["summary_stats"],
+        "clauses": clauses
+    })
+
+@app.route("/api/chat", methods=["POST"])
+def chat_endpoint():
+    cleanup_old_sessions()
+    data = request.get_json(silent=True) or {}
+    session_id = data.get("session_id")
+    question = data.get("message", "").strip()
 
     if not session_id or session_id not in SESSIONS:
-        return jsonify({"success": False, "message": "Session không hợp lệ"}), 404
+        return jsonify({"success": False, "message": "Phiên làm việc không tồn tại hoặc đã hết hạn. Vui lòng tải lại hợp đồng."}), 400
+
     if not question:
-        return jsonify({"success": False, "message": "Câu hỏi trống"}), 400
+        return jsonify({"success": False, "message": "Câu hỏi không được để trống."}), 400
 
-    chatbot = SESSIONS[session_id]
-    try:
-        result = chatbot.chat(question)
-        if "error" in result:
-            return jsonify({"success": False, "message": result["error"]}), 400
-        return jsonify({"success": True, **result})
-    except Exception as e:
-        logging.error(f"❌ Lỗi khi chat session {session_id}: {e}")
-        return jsonify({"success": False, "message": str(e)}), 500
+    session_data = SESSIONS[session_id]
+    session_data["last_active"] = time.time()
+    contract_vs = session_data["vectorstore"]
 
-# =========================
-# 🚀 CHẠY ỨNG DỤNG
-# =========================
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # 1. Tìm điều khoản hợp đồng liên quan
+    contract_chunks = contract_vs.similarity_search(question, k=2)
+    contract_context = "\n\n".join([d.page_content for d in contract_chunks])
+
+    # 2. Tìm căn cứ pháp lý liên quan từ Legal Knowledge Base
+    legal_docs = LEGAL_KB.search_law(question)
+    legal_context = "\n\n".join([d.page_content for d in legal_docs])
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", """Bạn là VietGuard Chatbot - Trợ lý pháp lý thông minh bảo vệ quyền lợi người ký hợp đồng tại Việt Nam.
+Hãy trả lời câu hỏi của người dùng một cách chính xác, thân thiện, dễ hiểu, bám sát các điều khoản trong hợp đồng của họ và đối chiếu với quy định pháp luật Việt Nam.
+
+NỘI DUNG HỢP ĐỒNG CỦA NGƯỜI DÙNG:
+\"\"\"{contract_context}\"\"\"
+
+CĂN CỨ PHÁP LUẬT THAM CHIẾU:
+\"\"\"{legal_context}\"\"\"
+
+HƯỚNG DẪN TRẢ LỜI:
+- Trả lời thẳng vào trọng tâm câu hỏi.
+- Nếu điều khoản trong hợp đồng bất lợi hoặc trái luật, hãy chỉ rõ điều luật bảo vệ họ và khuyên họ cách xử lý khôn khéo.
+- Giữ phong thái chuyên nghiệp, thấu cảm và tự tin."""),
+        ("human", "{question}")
+    ])
+
+    chain = prompt | CHAT_LLM | StrOutputParser()
+    answer = chain.invoke({
+        "contract_context": contract_context,
+        "legal_context": legal_context,
+        "question": question
+    })
+
+    return jsonify({
+        "success": True,
+        "answer": answer,
+        "cited_clauses": [d.metadata.get("clause_id") for d in contract_chunks]
+    })
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)

@@ -3,264 +3,556 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chatbot RAG - Trò chuyện với tài liệu</title>
+  <title>VietGuard AI - Trợ lý Soi Bẫy Hợp Đồng & Rủi Ro Pháp Lý</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    #chat-box::-webkit-scrollbar { width: 6px; }
-    #chat-box::-webkit-scrollbar-track { background: #2d3748; }
-    #chat-box::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 3px; }
-    #chat-box::-webkit-scrollbar-thumb:hover { background: #718096; }
-    .source-content { white-space: pre-wrap; word-break: break-word; }
-    #overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.7);
-      backdrop-filter: blur(2px);
-      z-index: 50;
-      justify-content: center;
-      align-items: center;
-      color: white;
-      font-size: 1.1rem;
-      flex-direction: column;
-    }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .mono { font-family: 'JetBrains Mono', monospace; }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, 0.5); border-radius: 4px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.8); }
+    .glass { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
   </style>
 </head>
-<body class="bg-gray-900 text-gray-200 flex items-center justify-center min-h-screen p-4">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
-  <div class="bg-gray-800 w-full max-w-3xl rounded-xl shadow-2xl flex flex-col" style="height: 90vh;">
-    <header class="bg-gray-700/50 p-4 border-b border-gray-600 rounded-t-xl flex justify-between items-center">
-      <div>
-        <h1 class="text-xl font-bold text-white text-center">Trò chuyện với tài liệu</h1>
-        <p id="sub-header" class="text-sm text-center text-gray-400 mt-1">Tải lên file PDF hoặc TXT để bắt đầu</p>
-      </div>
-      <button id="reset-btn" class="hidden text-gray-300 hover:text-white text-sm border border-gray-500 rounded px-2 py-1">📁 Đổi tài liệu</button>
-    </header>
-
-    <!-- Nội dung chính -->
-    <main class="flex-1 p-6 flex flex-col overflow-hidden">
-      <!-- Upload -->
-      <div id="upload-container" class="flex flex-col items-center justify-center h-full">
-        <label for="file-input" class="w-full max-w-md border-2 border-dashed border-gray-500 rounded-lg p-10 text-center cursor-pointer hover:border-blue-400 hover:bg-gray-700/50 transition-colors">
-          <div class="flex flex-col items-center">
-            <i data-lucide="upload-cloud" class="w-16 h-16 text-gray-400 mb-4"></i>
-            <span class="font-semibold">Nhấn để chọn file</span>
-            <span class="text-xs text-gray-500 mt-1">Hỗ trợ PDF, TXT</span>
+  <!-- TOP NAVIGATION BAR -->
+  <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center shadow-lg shadow-blue-500/20">
+          <i data-lucide="shield-alert" class="w-6 h-6 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center space-x-2">
+            <span class="font-extrabold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">VietGuard AI</span>
+            <span class="text-xs px-2 py-0.5 rounded-full font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20">LegalTech v2.0</span>
           </div>
-        </label>
-        <input type="file" id="file-input" class="hidden" accept=".pdf,.txt">
-        <p id="upload-status" class="mt-4 text-sm text-gray-400 h-5"></p>
+          <p class="text-xs text-slate-400">Trợ lý Soi Rủi ro & Bẫy Hợp đồng theo Pháp luật Việt Nam</p>
+        </div>
       </div>
 
-      <!-- Chat -->
-      <div id="chat-container" class="hidden flex-1 flex flex-col overflow-hidden">
-        <div id="chat-box" class="flex-1 space-y-4 p-4 overflow-y-auto rounded-lg bg-gray-900/50 mb-4"></div>
-        <form id="chat-form" class="flex items-center space-x-3">
-          <input type="text" id="question-input" placeholder="Nhập câu hỏi..." class="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 text-white disabled:opacity-50">
-          <button type="submit" id="send-button" class="bg-blue-600 text-white p-2 rounded-lg hover:bg-blue-700 disabled:bg-blue-800">
-            <i data-lucide="send-horizontal" class="w-6 h-6"></i>
+      <div class="hidden md:flex items-center space-x-2 text-xs">
+        <span class="text-slate-400">Cơ sở tri thức:</span>
+        <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 font-medium">BLLĐ 2019</span>
+        <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 font-medium">BLDS 2015</span>
+        <span class="px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 border border-slate-700/60 font-medium">Luật Nhà ở</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col space-y-8">
+
+    <!-- INPUT & HERO SECTION -->
+    <section id="input-section" class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      
+      <!-- Left Column: Upload & Sample Select -->
+      <div class="lg:col-span-5 flex flex-col space-y-4">
+        <div class="glass p-6 rounded-2xl">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+              <i data-lucide="file-text" class="w-4 h-4 text-blue-400"></i>
+              <span>1. Nạp Hợp Đồng Cần Soi</span>
+            </h2>
+            <span class="text-xs text-slate-400">PDF, TXT hoặc Dán văn bản</span>
+          </div>
+
+          <!-- File Drop Zone -->
+          <label for="contract-file" class="group border-2 border-dashed border-slate-700 hover:border-blue-500/80 rounded-xl p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-slate-900/40 hover:bg-slate-800/40 text-center">
+            <div class="w-12 h-12 rounded-full bg-slate-800 group-hover:bg-blue-600/20 flex items-center justify-center transition-colors mb-3">
+              <i data-lucide="upload-cloud" class="w-6 h-6 text-slate-400 group-hover:text-blue-400"></i>
+            </div>
+            <p class="text-sm font-semibold text-slate-200">Tải lên file PDF hoặc TXT</p>
+            <p id="file-chosen-name" class="text-xs text-slate-400 mt-1">Hỗ trợ hợp đồng thuê nhà, hợp đồng lao động...</p>
+            <input type="file" id="contract-file" accept=".pdf,.txt" class="hidden" />
+          </label>
+
+          <!-- Divider -->
+          <div class="relative my-4 flex items-center justify-center">
+            <div class="border-t border-slate-800 w-full"></div>
+            <span class="bg-slate-900 px-3 text-xs text-slate-500 uppercase font-medium">Hoặc thử ngay mẫu thực tế</span>
+          </div>
+
+          <!-- One-click Sample Buttons -->
+          <div class="space-y-2">
+            <button onclick="loadSample('sample_rental')" class="w-full text-left p-3 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-amber-500/50 transition-all flex items-start space-x-3 group">
+              <span class="text-xl">🏠</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-xs font-bold text-slate-200 group-hover:text-amber-400">Hợp đồng Thuê trọ (Bẫy cọc & điện)</h4>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold">Thuê nhà</span>
+                </div>
+                <p class="text-[11px] text-slate-400 truncate mt-0.5">Tịch thu 100% cọc vô điều kiện, điện 4.5k/kWh, tự ý vào phòng</p>
+              </div>
+            </button>
+
+            <button onclick="loadSample('sample_labor')" class="w-full text-left p-3 rounded-xl bg-slate-800/60 hover:bg-slate-800 border border-slate-700/60 hover:border-rose-500/50 transition-all flex items-start space-x-3 group">
+              <span class="text-xl">🏢</span>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between">
+                  <h4 class="text-xs font-bold text-slate-200 group-hover:text-rose-400">Hợp đồng Lao động (Bẫy giữ bằng & phạt)</h4>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-semibold">Lao động</span>
+                </div>
+                <p class="text-[11px] text-slate-400 truncate mt-0.5">Giữ CCCD gốc, thử việc 90 ngày, phạt tiền đi trễ, phạt 60tr đào tạo</p>
+              </div>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Contract Text Preview & Submit -->
+      <div class="lg:col-span-7 flex flex-col">
+        <div class="glass p-6 rounded-2xl flex-1 flex flex-col">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-slate-300 flex items-center space-x-2">
+              <i data-lucide="align-left" class="w-4 h-4 text-indigo-400"></i>
+              <span>2. Nội Dung Văn Bản Hợp Đồng</span>
+            </h2>
+            <button onclick="clearText()" class="text-xs text-slate-400 hover:text-slate-200">Xóa trắng</button>
+          </div>
+
+          <textarea id="contract-textarea" rows="12" class="w-full flex-1 bg-slate-900/60 border border-slate-800 rounded-xl p-4 text-xs font-normal text-slate-200 custom-scrollbar focus:outline-none focus:border-blue-500 transition-colors resize-none leading-relaxed" placeholder="Dán nội dung bản hợp đồng vào đây, hoặc nhấn chọn một trong 2 mẫu thực tế bên cạnh để trải nghiệm ngay..."></textarea>
+
+          <div class="mt-4 flex items-center justify-between pt-3 border-t border-slate-800">
+            <span class="text-xs text-slate-400 flex items-center space-x-1.5">
+              <i data-lucide="info" class="w-3.5 h-3.5 text-blue-400"></i>
+              <span>Hệ thống phân tích từng Điều khoản độc lập và đề xuất câu chữ sửa đổi (Redline)</span>
+            </span>
+
+            <button id="btn-audit" onclick="startAudit()" class="px-6 py-2.5 rounded-xl font-bold text-sm bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-500 hover:to-indigo-600 text-white shadow-lg shadow-indigo-600/30 flex items-center space-x-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+              <i data-lucide="search-check" class="w-4 h-4"></i>
+              <span>Soi Bẫy Hợp Đồng</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LOADING STATE MODAL -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div class="glass max-w-md w-full p-8 rounded-2xl border border-blue-500/20 text-center flex flex-col items-center space-y-4">
+        <div class="relative w-16 h-16 flex items-center justify-center">
+          <div class="absolute inset-0 rounded-full border-4 border-blue-500/20 border-t-blue-500 animate-spin"></div>
+          <i data-lucide="scale" class="w-7 h-7 text-blue-400 animate-pulse"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">VietGuard AI Đang Soi Hợp Đồng...</h3>
+          <p id="loading-subtext" class="text-xs text-slate-400 mt-1">Đang bóc tách từng Điều khoản và đối chiếu pháp luật Việt Nam...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT REPORT DASHBOARD -->
+    <section id="results-section" class="hidden flex flex-col space-y-6">
+      
+      <!-- Top Summary Card -->
+      <div class="glass p-6 rounded-2xl border border-slate-800">
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+          <div>
+            <div class="flex items-center space-x-3">
+              <span id="overall-status-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider"></span>
+              <span id="detected-type-badge" class="text-xs text-slate-400"></span>
+            </div>
+            <h2 class="text-xl font-extrabold text-white mt-1">Báo Cáo Thẩm Định & Cảnh Báo Rủi Ro Pháp Lý</h2>
+          </div>
+
+          <div class="flex items-center space-x-2">
+            <button onclick="scrollToChat()" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 flex items-center space-x-2 transition-all">
+              <i data-lucide="message-square" class="w-4 h-4 text-blue-400"></i>
+              <span>Hỏi Đáp Pháp Lý Về Bản Hợp Đồng Này</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 Metric Counters -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
+          <div class="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+            <span class="text-xs font-medium text-slate-400">Tổng số Điều khoản</span>
+            <div id="stat-total" class="text-2xl font-extrabold text-white mt-1">0</div>
+          </div>
+          <div class="bg-rose-950/20 p-4 rounded-xl border border-rose-900/30">
+            <span class="text-xs font-bold text-rose-400 flex items-center space-x-1">
+              <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+              <span>Bẫy Trái Luật (RED)</span>
+            </span>
+            <div id="stat-red" class="text-2xl font-extrabold text-rose-400 mt-1">0</div>
+          </div>
+          <div class="bg-amber-950/20 p-4 rounded-xl border border-amber-900/30">
+            <span class="text-xs font-bold text-amber-400 flex items-center space-x-1">
+              <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+              <span>Bất Lợi / Ép Uổng (YELLOW)</span>
+            </span>
+            <div id="stat-yellow" class="text-2xl font-extrabold text-amber-400 mt-1">0</div>
+          </div>
+          <div class="bg-emerald-950/20 p-4 rounded-xl border border-emerald-900/30">
+            <span class="text-xs font-bold text-emerald-400 flex items-center space-x-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+              <span>Hợp Lệ / An Toàn (GREEN)</span>
+            </span>
+            <div id="stat-green" class="text-2xl font-extrabold text-emerald-400 mt-1">0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Clause Inspection Cards List -->
+      <div class="space-y-4" id="clauses-container">
+        <!-- Rendered dynamically by JavaScript -->
+      </div>
+
+      <!-- INTERACTIVE LEGAL CHATBOT DRAWER / SECTION -->
+      <div id="legal-chat-section" class="glass p-6 rounded-2xl border border-slate-800 flex flex-col space-y-4">
+        <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <div class="w-8 h-8 rounded-lg bg-blue-600/20 text-blue-400 flex items-center justify-center">
+              <i data-lucide="bot" class="w-5 h-5"></i>
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-white">Hỏi Đáp Pháp Lý Về Bản Hợp Đồng Này</h3>
+              <p class="text-[11px] text-slate-400">Trợ lý AI trả lời dựa trên các điều khoản hợp đồng của bạn và Bộ luật hiện hành</p>
+            </div>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded bg-slate-800 text-slate-300 border border-slate-700">RAG Chatbot</span>
+        </div>
+
+        <!-- Chat History Box -->
+        <div id="chat-messages" class="h-64 overflow-y-auto custom-scrollbar space-y-3 p-3 bg-slate-900/60 rounded-xl border border-slate-800 text-xs">
+          <div class="flex items-start space-x-2.5 text-slate-300">
+            <div class="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white flex-shrink-0 mt-0.5">
+              <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+            </div>
+            <div class="p-3 bg-slate-800/80 rounded-2xl rounded-tl-none border border-slate-700/60 max-w-2xl leading-relaxed">
+              Xin chào! Tôi đã đọc kỹ bản hợp đồng của bạn. Bạn có thắc mắc gì về quyền lợi, cách từ chối điều khoản vô lý, hoặc nguy cơ kiện tụng không?
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Question Chips -->
+        <div class="flex flex-wrap gap-2 text-[11px]">
+          <span class="text-slate-400 py-1">Gợi ý câu hỏi:</span>
+          <button onclick="askPreset('Nếu tôi tự ý nghỉ việc trước hạn thì công ty có quyền phạt tiền hay giữ lương không?')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors">
+            "Nếu tự ý nghỉ việc có bị phạt tiền không?"
+          </button>
+          <button onclick="askPreset('Làm sao để đàm phán lại việc chủ nhà không được tịch thu 100% tiền cọc?')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors">
+            "Cách từ chối việc mất cọc khi chuyển đi?"
+          </button>
+          <button onclick="askPreset('Hành vi giữ bản chính CCCD hoặc bằng đại học gốc bị phạt như thế nào theo luật?')" class="px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors">
+            "Giữ bằng gốc và CCCD bị phạt thế nào?"
+          </button>
+        </div>
+
+        <!-- Chat Input Form -->
+        <form id="chat-form" onsubmit="sendChatMessage(event)" class="flex space-x-2">
+          <input type="text" id="chat-input" placeholder="Đặt câu hỏi pháp lý về bản hợp đồng này..." class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-blue-500 transition-colors" />
+          <button type="submit" class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center space-x-1.5 transition-all">
+            <span>Gửi</span>
+            <i data-lucide="send" class="w-3.5 h-3.5"></i>
           </button>
         </form>
       </div>
-    </main>
-  </div>
 
-  <!-- Overlay Loading -->
-  <div id="overlay" class="flex">
-    <i data-lucide="loader-2" class="animate-spin w-10 h-10 mb-3"></i>
-    <span>Đang xử lý tài liệu, vui lòng đợi...</span>
+    </section>
+
+  </main>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 bg-slate-800 text-white text-xs px-4 py-2.5 rounded-xl border border-slate-700 shadow-xl flex items-center space-x-2 z-50">
+    <i data-lucide="check-circle" class="w-4 h-4 text-emerald-400"></i>
+    <span id="toast-msg">Đã sao chép!</span>
   </div>
 
   <script>
+    let currentSessionId = null;
+
+    // Khởi tạo Lucide Icons
     lucide.createIcons();
 
-    // --- DOM Elements ---
-    const uploadContainer = document.getElementById('upload-container');
-    const chatContainer = document.getElementById('chat-container');
-    const fileInput = document.getElementById('file-input');
-    const uploadStatus = document.getElementById('upload-status');
-    const subHeader = document.getElementById('sub-header');
-    const resetBtn = document.getElementById('reset-btn');
-
-    const chatBox = document.getElementById('chat-box');
-    const chatForm = document.getElementById('chat-form');
-    const questionInput = document.getElementById('question-input');
-    const sendButton = document.getElementById('send-button');
-    const overlay = document.getElementById('overlay');
-
-    // --- State ---
-    let sessionId = null;
-    let isBotThinking = false;
-    const API_BASE_URL = window.location.origin;
-
-    // --- Event Listeners ---
-    fileInput.addEventListener('change', handleFileUpload);
-    chatForm.addEventListener('submit', handleSendMessage);
-    resetBtn.addEventListener('click', resetSession);
-
-    // --- API ---
-    async function handleFileUpload(e) {
+    // Xử lý chọn file
+    document.getElementById('contract-file').addEventListener('change', function(e) {
       const file = e.target.files[0];
-      if (!file) return;
-
-      uploadStatus.textContent = `Đang tải: ${file.name}...`;
-      overlay.style.display = 'flex';
-
-      const formData = new FormData();
-      formData.append('file', file);
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/upload`, { method: 'POST', body: formData });
-        const data = await res.json();
-        overlay.style.display = 'none';
-
-        if (!res.ok || !data.success) throw new Error(data.message);
-        sessionId = data.session_id;
-
-        uploadStatus.textContent = '✅ Tải lên thành công!';
-        subHeader.textContent = `Đang trò chuyện với: ${file.name}`;
-        resetBtn.classList.remove('hidden');
-
-        setTimeout(() => {
-          uploadContainer.classList.add('hidden');
-          chatContainer.classList.remove('hidden');
-          addMessage('Xin chào! Bạn muốn hỏi gì về tài liệu này?', 'bot');
-        }, 600);
-
-      } catch (err) {
-        console.error(err);
-        overlay.style.display = 'none';
-        uploadStatus.textContent = `❌ Lỗi: ${err.message || 'Không thể kết nối đến máy chủ'}`;
-      }
-    }
-
-    async function handleSendMessage(e) {
-      e.preventDefault();
-      const question = questionInput.value.trim();
-      if (!question || !sessionId || isBotThinking) return;
-
-      addMessage(question, 'user');
-      questionInput.value = '';
-      setChatDisabled(true);
-      addMessage('Bot đang suy nghĩ...', 'bot', [], 'thinking');
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/api/chat`, {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ session_id: sessionId, question })
-        });
-        const data = await res.json();
-        removeThinking();
-
-        if (!res.ok || !data.success) throw new Error(data.message);
-        addMessage(data.answer, 'bot', data.sources || [], '', data.action);
-      } catch (err) {
-        removeThinking();
-        addMessage(`❌ Lỗi: ${err.message}`, 'bot', [], 'error');
-      } finally {
-        setChatDisabled(false);
-      }
-    }
-
-    // --- UI Helpers ---
-    function addMessage(text, sender, sources = [], id = '', action = '') {
-      const wrap = document.createElement('div');
-      wrap.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
-      if (id) wrap.id = id;
-
-      const bubble = document.createElement('div');
-      bubble.className = `max-w-md lg:max-w-xl rounded-xl px-4 py-2 ${sender === 'user' ? 'bg-blue-600 text-white' : 'bg-gray-600 text-gray-100'}`;
-      
-      // Hiển thị Action Badge nếu có
-      if (sender === 'bot' && action) {
-        let actionBadge = '';
-        let badgeColor = '';
-        if (action === 'RETRIEVE') {
-          actionBadge = '📁 Đọc tài liệu';
-          badgeColor = 'bg-emerald-900/50 text-emerald-300 border-emerald-700/50';
-        } else if (action === 'WEB_SEARCH') {
-          actionBadge = '🌐 Tìm kiếm Web';
-          badgeColor = 'bg-blue-900/50 text-blue-300 border-blue-700/50';
-        } else if (action === 'DIRECT') {
-          actionBadge = '💬 Trả lời trực tiếp';
-          badgeColor = 'bg-purple-900/50 text-purple-300 border-purple-700/50';
+      if (file) {
+        document.getElementById('file-chosen-name').innerText = "Đã chọn: " + file.name;
+        // Đọc nội dung file nếu là text
+        if (file.name.endsWith('.txt')) {
+          const reader = new FileReader();
+          reader.onload = function(evt) {
+            document.getElementById('contract-textarea').value = evt.target.result;
+          };
+          reader.readAsText(file);
+        } else {
+          document.getElementById('contract-textarea').value = "[File PDF: " + file.name + " đã sẵn sàng tải lên để hệ thống bóc tách]";
         }
-        
-        const badgeDiv = document.createElement('div');
-        badgeDiv.className = `inline-flex items-center space-x-1 text-[10px] px-2 py-0.5 rounded-full border mb-1.5 font-semibold ${badgeColor}`;
-        badgeDiv.textContent = actionBadge;
-        bubble.appendChild(badgeDiv);
+      }
+    });
+
+    function clearText() {
+      document.getElementById('contract-textarea').value = "";
+      document.getElementById('contract-file').value = "";
+      document.getElementById('file-chosen-name').innerText = "Hỗ trợ hợp đồng thuê nhà, hợp đồng lao động...";
+    }
+
+    async function loadSample(sampleId) {
+      try {
+        const res = await fetch(`/api/sample-contract/${sampleId}`);
+        const data = await res.json();
+        if (data.success) {
+          document.getElementById('contract-textarea').value = data.contract_text;
+          document.getElementById('file-chosen-name').innerText = "Đã nạp mẫu: " + sampleId;
+          showToast("Đã nạp mẫu hợp đồng thực tế thành công!");
+        }
+      } catch (err) {
+        alert("Lỗi tải mẫu: " + err);
+      }
+    }
+
+    async function startAudit() {
+      const text = document.getElementById('contract-textarea').value.trim();
+      const fileInput = document.getElementById('contract-file');
+      const hasFile = fileInput.files && fileInput.files[0] && fileInput.files[0].name.endsWith('.pdf');
+
+      if (!hasFile && text.length < 50) {
+        alert("Vui lòng tải file hoặc dán nội dung hợp đồng dài tối thiểu 50 ký tự.");
+        return;
       }
 
-      const textDiv = document.createElement('div');
-      textDiv.className = 'whitespace-pre-wrap';
-      textDiv.textContent = text;
-      bubble.appendChild(textDiv);
-      wrap.appendChild(bubble);
+      const overlay = document.getElementById('loading-overlay');
+      overlay.classList.remove('hidden');
 
-      if (sender === 'bot' && sources.length) {
-        const details = document.createElement('details');
-        details.className = 'mt-2 text-xs border-t border-gray-500/30 pt-1.5';
-        details.innerHTML = `<summary class="cursor-pointer text-gray-400 hover:text-white font-medium flex items-center select-none">Xem nguồn tham chiếu <i data-lucide="chevron-down" class="w-3.5 h-3.5 ml-1"></i></summary>`;
-        const box = document.createElement('div');
-        box.className = 'mt-2 space-y-2.5 p-3 bg-gray-900/55 rounded-lg border border-gray-700/50';
+      try {
+        let response;
+        if (hasFile) {
+          const formData = new FormData();
+          formData.append('file', fileInput.files[0]);
+          response = await fetch('/api/audit', {
+            method: 'POST',
+            body: formData
+          });
+        } else {
+          response = await fetch('/api/audit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contract_text: text })
+          });
+        }
 
-        sources.forEach((s, i) => {
-          if (s.type === 'web') {
-            const item = `<div class="border-b border-gray-800 pb-2 last:border-b-0 last:pb-0">
-                            <p class="font-semibold text-gray-300 flex items-center flex-wrap">Nguồn ${i+1}: 
-                              <a href="${s.url}" target="_blank" class="text-blue-400 hover:underline inline-flex items-center ml-1 font-normal break-all">
-                                ${s.title} <i data-lucide="external-link" class="w-3 h-3 ml-0.5"></i>
-                              </a>
-                            </p>
-                            <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
-                          </div>`;
-            box.innerHTML += item;
-          } else {
-            const page = s.metadata && s.metadata.page !== undefined ? ` (trang ${s.metadata.page + 1})` : '';
-            const item = `<div class="border-b border-gray-800 pb-2 last:border-b-0 last:pb-0">
-                            <p class="font-semibold text-gray-300">Nguồn ${i+1}${page}:</p>
-                            <p class="text-gray-400 mt-1 source-content">"...${s.content}..."</p>
-                          </div>`;
-            box.innerHTML += item;
-          }
+        const data = await response.json();
+        overlay.classList.add('hidden');
+
+        if (!data.success) {
+          alert("Lỗi: " + data.message);
+          return;
+        }
+
+        renderAuditResults(data);
+      } catch (err) {
+        overlay.classList.add('hidden');
+        alert("Lỗi kết nối máy chủ: " + err);
+      }
+    }
+
+    function renderAuditResults(data) {
+      currentSessionId = data.session_id;
+
+      // Hiển thị phần kết quả
+      const resultsSection = document.getElementById('results-section');
+      resultsSection.classList.remove('hidden');
+
+      // Cập nhật thẻ tổng kết
+      const statusBadge = document.getElementById('overall-status-badge');
+      if (data.overall_status === 'DANGEROUS') {
+        statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30";
+        statusBadge.innerText = "🔴 NGUY HIỂM: PHÁT HIỆN ĐIỀU KHOẢN TRÁI LUẬT";
+      } else if (data.overall_status === 'WARNING') {
+        statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30";
+        statusBadge.innerText = "🟡 CẦN LƯU Ý: CÓ ĐIỀU KHOẢN BẤT LỢI ĐƠN PHƯƠNG";
+      } else {
+        statusBadge.className = "px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+        statusBadge.innerText = "🟢 AN TOÀN: HỢP ĐỒNG TUÂN THỦ PHÁP LUẬT";
+      }
+
+      document.getElementById('detected-type-badge').innerText = "Loại hợp đồng: " + data.contract_type;
+      document.getElementById('stat-total').innerText = data.summary_stats.total_clauses;
+      document.getElementById('stat-red').innerText = data.summary_stats.red_flags;
+      document.getElementById('stat-yellow').innerText = data.summary_stats.yellow_flags;
+      document.getElementById('stat-green').innerText = data.summary_stats.green_flags;
+
+      // Render từng điều khoản
+      const container = document.getElementById('clauses-container');
+      container.innerHTML = "";
+
+      data.clauses.forEach((c, idx) => {
+        const card = document.createElement('div');
+        const level = c.risk_level || 'GREEN';
+
+        let borderClass = "border-slate-800";
+        let badgeBg = "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+        let levelText = "🟢 AN TOÀN (Điểm 1/5)";
+
+        if (level === 'RED') {
+          borderClass = "border-rose-900/50 bg-rose-950/10";
+          badgeBg = "bg-rose-500/20 text-rose-400 border-rose-500/30";
+          levelText = `🔴 RỦI RO CAO / TRÁI LUẬT (Điểm ${c.risk_score || 5}/5)`;
+        } else if (level === 'YELLOW') {
+          borderClass = "border-amber-900/50 bg-amber-950/10";
+          badgeBg = "bg-amber-500/20 text-amber-400 border-amber-500/30";
+          levelText = `🟡 BẤT LỢI / CẦN ĐÀM PHÁN (Điểm ${c.risk_score || 3}/5)`;
+        }
+
+        card.className = `glass p-6 rounded-2xl border ${borderClass} transition-all`;
+
+        let redlineHtml = "";
+        if (c.redline_recommendation) {
+          redlineHtml = `
+            <div class="mt-4 p-4 rounded-xl bg-slate-900/80 border border-indigo-500/30">
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-bold text-indigo-400 flex items-center space-x-1.5">
+                  <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                  <span>GỢI Ý CÂU CHỮ ĐÀM PHÁN SỬA ĐỔI (REDLINE):</span>
+                </span>
+                <button onclick="copyText('${escapeQuotes(c.redline_recommendation)}')" class="text-[11px] px-2.5 py-1 rounded bg-indigo-600/30 hover:bg-indigo-600/50 text-indigo-300 border border-indigo-500/30 font-medium flex items-center space-x-1 transition-colors">
+                  <i data-lucide="copy" class="w-3 h-3"></i>
+                  <span>Sao chép để gửi</span>
+                </button>
+              </div>
+              <p class="text-xs text-slate-200 italic leading-relaxed">"${c.redline_recommendation}"</p>
+            </div>
+          `;
+        }
+
+        let legalBadge = "";
+        if (c.legal_violation) {
+          legalBadge = `
+            <div class="mt-3 inline-flex items-center space-x-1.5 px-3 py-1 rounded-md bg-slate-800 text-xs font-semibold text-slate-300 border border-slate-700">
+              <i data-lucide="scale" class="w-3.5 h-3.5 text-blue-400"></i>
+              <span>Căn cứ pháp lý: ${c.legal_violation}</span>
+            </div>
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
+            <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+              <span>${c.clause_id}</span>
+              <span class="text-slate-400 font-normal">| ${c.title}</span>
+            </h3>
+            <span class="px-2.5 py-1 rounded-full text-xs font-bold border ${badgeBg}">${levelText}</span>
+          </div>
+
+          <div class="p-3 bg-slate-900/50 rounded-xl border border-slate-800/80 text-xs text-slate-300 font-mono leading-relaxed mb-3">
+            "${c.original_content}"
+          </div>
+
+          <p class="text-xs text-slate-200 font-medium leading-relaxed">
+            <strong class="text-slate-400 font-semibold">Tóm tắt:</strong> ${c.summary || ''}
+          </p>
+
+          <p class="text-xs text-slate-400 leading-relaxed mt-1">
+            <strong class="text-slate-400 font-semibold">Phân tích rủi ro:</strong> ${c.explanation || ''}
+          </p>
+
+          ${legalBadge}
+          ${redlineHtml}
+        `;
+
+        container.appendChild(card);
+      });
+
+      lucide.createIcons();
+      resultsSection.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function escapeQuotes(str) {
+      if (!str) return "";
+      return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+    }
+
+    function copyText(text) {
+      navigator.clipboard.writeText(text);
+      showToast("Đã sao chép đoạn văn bản đàm phán!");
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-msg').innerText = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 2500);
+    }
+
+    function scrollToChat() {
+      document.getElementById('legal-chat-section').scrollIntoView({ behavior: 'smooth' });
+      document.getElementById('chat-input').focus();
+    }
+
+    function askPreset(q) {
+      document.getElementById('chat-input').value = q;
+      sendChatMessage(new Event('submit'));
+    }
+
+    async function sendChatMessage(e) {
+      if (e) e.preventDefault();
+      const input = document.getElementById('chat-input');
+      const question = input.value.trim();
+      if (!question) return;
+
+      if (!currentSessionId) {
+        alert("Vui lòng soi hợp đồng trước khi bắt đầu hỏi đáp.");
+        return;
+      }
+
+      const msgContainer = document.getElementById('chat-messages');
+
+      // Append User message
+      const userDiv = document.createElement('div');
+      userDiv.className = "flex items-start justify-end space-x-2 text-slate-200";
+      userDiv.innerHTML = `
+        <div class="p-3 bg-blue-600 rounded-2xl rounded-tr-none max-w-xl leading-relaxed text-xs text-white">
+          ${question}
+        </div>
+      `;
+      msgContainer.appendChild(userDiv);
+      input.value = "";
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+
+      // Loading Bot message
+      const botDiv = document.createElement('div');
+      botDiv.className = "flex items-start space-x-2 text-slate-300";
+      botDiv.innerHTML = `
+        <div class="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white flex-shrink-0 mt-0.5">
+          <i data-lucide="shield" class="w-3.5 h-3.5"></i>
+        </div>
+        <div class="p-3 bg-slate-800/80 rounded-2xl rounded-tl-none border border-slate-700/60 max-w-2xl leading-relaxed text-xs text-slate-400">
+          VietGuard AI đang tra cứu điều khoản và căn cứ luật...
+        </div>
+      `;
+      msgContainer.appendChild(botDiv);
+      lucide.createIcons();
+      msgContainer.scrollTop = msgContainer.scrollHeight;
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            session_id: currentSessionId,
+            message: question
+          })
         });
 
-        details.appendChild(box);
-        bubble.appendChild(details);
-        
-        // Cập nhật biểu tượng lucide
-        setTimeout(() => { lucide.createIcons(); }, 50);
+        const data = await res.json();
+        if (data.success) {
+          botDiv.querySelector('div:last-child').innerHTML = data.answer.replace(/\n/g, '<br/>');
+          botDiv.querySelector('div:last-child').classList.remove('text-slate-400');
+          botDiv.querySelector('div:last-child').classList.add('text-slate-200');
+        } else {
+          botDiv.querySelector('div:last-child').innerText = "Lỗi: " + data.message;
+        }
+      } catch (err) {
+        botDiv.querySelector('div:last-child').innerText = "Lỗi kết nối: " + err;
       }
-
-      chatBox.appendChild(wrap);
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-    function setChatDisabled(disabled) {
-      isBotThinking = disabled;
-      questionInput.disabled = disabled;
-      sendButton.disabled = disabled;
-    }
-
-    function removeThinking() {
-      const t = document.getElementById('thinking');
-      if (t) t.remove();
-    }
-
-    function resetSession() {
-      sessionId = null;
-      chatBox.innerHTML = '';
-      questionInput.value = '';
-      uploadContainer.classList.remove('hidden');
-      chatContainer.classList.add('hidden');
-      subHeader.textContent = 'Tải lên file PDF hoặc TXT để bắt đầu';
-      resetBtn.classList.add('hidden');
-      uploadStatus.textContent = '';
+      msgContainer.scrollTop = msgContainer.scrollHeight;
     }
   </script>
 </body>

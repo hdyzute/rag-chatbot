@@ -1,0 +1,117 @@
+{
+  "total_test_cases": 10,
+  "accuracy_rate": "60.0%",
+  "severe_trap_recall": "100.0% (6/6)",
+  "details": [
+    {
+      "test_case_id": 1,
+      "trap_type": "Giữ giấy tờ gốc",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 17 Bộ luật Lao động 2019",
+      "summary": "Điều khoản yêu cầu người lao động nộp bản chính giấy tờ tùy thân cho công ty lưu giữ suốt thời hạn hợp đồng là vi phạm pháp luật nghiêm trọng.",
+      "redline": "Đề nghị thay đổi điều khoản để người lao động chỉ cần nộp bản sao giấy tờ tùy thân cho công ty lưu giữ và chỉ giữ bản chính trong trường hợp cần thiết, ví dụ như khi có yêu cầu từ cơ quan chức năng hoặc trong các trường hợp pháp lý khác.",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 2,
+      "trap_type": "Ký quỹ / Tiền cọc đi làm",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 102 Bộ Luật Lao động 2012, Điều 35 Bộ Luật Lao động 2012",
+      "summary": "Điều khoản vi phạm nghiêm trọng các quy định pháp luật về bảo lãnh lao động.",
+      "redline": "Đề nghị thay đổi điều khoản thành: 'Để bảo đảm thực hiện hợp đồng lao động tối thiểu 12 tháng, công ty sẽ trích lập Quỹ dự phòng để hỗ trợ người lao động trong trường hợp cần thiết, không được khấu trừ tiền lương của người lao động.",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 3,
+      "trap_type": "Thời gian và lương thử việc sai luật",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 25 và Điều 26 Bộ Luật Lao động 2019",
+      "summary": "Điều khoản vi phạm pháp luật về thời gian thử việc và mức lương trong thời gian thử việc.",
+      "redline": "Thay đổi thời gian thử việc thành không quá 60 ngày và nâng mức lương trong thời gian thử việc lên ít nhất 85% mức lương chính thức.",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 4,
+      "trap_type": "Phạt tiền trừ lương thay kỷ luật",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "null",
+      "summary": "Điều khoản phạt tiền khi đi muộn và vi phạm KPI bị đánh giá cao rủi ro.",
+      "redline": "Đề nghị sửa đổi điều khoản để tuân thủ các quy định về kỷ luật lao động, ví dụ: 'Người lao động đi muộn từ 10 phút trở lên sẽ bị khiển trách hoặc kéo dài thời hạn nâng lương không quá 6 tháng; nếu không hoàn thành KPI, người sử dụng lao động có quyền áp dụng biện pháp kỷ luật phù hợp như khiển trách, kéo dài thời hạn nâng lương, cách chức hoặc sa thải theo quy định của Bộ luật Lao động.'",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 5,
+      "trap_type": "Bồi thường chi phí đào tạo khống",
+      "expected_risk": "YELLOW",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 62 Bộ Luật Lao động 2012",
+      "summary": "Điều khoản bồi thường tiền đào tạo cố định khi chấm dứt hợp đồng sớm quá cao và trái với quy định pháp luật.",
+      "redline": "Đổi thành bồi thường một khoản tiền tương ứng với nửa tháng lương theo hợp đồng lao động và không yêu cầu người lao động phải bồi thường cho việc đào tạo cố định.",
+      "is_correct": false
+    },
+    {
+      "test_case_id": 6,
+      "trap_type": "Phạt tiền khi hủy hợp đồng trong thời gian thử việc",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 27 Bộ Luật Lao động 2012, Điều 62 Bộ Luật Lao động 2012",
+      "summary": "Điều khoản gây rủi ro cao do vi phạm pháp luật.",
+      "redline": "Sửa đổi điều khoản thành: 'Trong thời gian thử việc, nếu người lao động tự ý xin nghỉ việc trước khi hết thời hạn thử việc thì công ty có quyền không ký kết hợp đồng lao động và không phải bồi thường cho chi phí tuyển dụng ban đầu.'",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 7,
+      "trap_type": "Tịch thu tiền cọc vô điều kiện",
+      "expected_risk": "YELLOW",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "null",
+      "summary": "Điều khoản bất lợi và trái luật",
+      "redline": "Đề xuất sửa đổi: 'Trong trường hợp bên thuê chấm dứt hợp đồng trước hạn vì lý do bất khả kháng hoặc lỗi của bên cho thuê, bên cho thuê chỉ được tịch thu một phần tiền đặt cọc theo thỏa thuận trong hợp đồng hoặc quy định pháp luật. Nếu không có thỏa thuận cụ thể, bên cho thuê chỉ được tịch thu tối đa 50% tiền đặt cọc.'",
+      "is_correct": false
+    },
+    {
+      "test_case_id": 8,
+      "trap_type": "Xâm phạm chỗ ở của người thuê",
+      "expected_risk": "RED",
+      "predicted_risk": "RED",
+      "risk_score": 4,
+      "legal_violation": "Điều 158 Bộ luật Hình sự",
+      "summary": "Chủ nhà có quyền tự ý mở cửa kiểm tra bất kỳ lúc nào, xâm phạm quyền riêng tư và bất khả xâm phạm về chỗ ở.",
+      "redline": "Chủ nhà nên thay đổi điều khoản thành: 'Chủ nhà chỉ được vào kiểm tra phòng khi có sự đồng ý trước hoặc trong trường hợp khẩn cấp và đã thông báo cho bên thuê trước ít nhất 24 giờ.'",
+      "is_correct": true
+    },
+    {
+      "test_case_id": 9,
+      "trap_type": "Thu tiền điện vượt khung quy định nhà nước",
+      "expected_risk": "YELLOW",
+      "predicted_risk": "GREEN",
+      "risk_score": 1,
+      "legal_violation": null,
+      "summary": "Điều khoản về giá điện sinh hoạt hợp pháp và minh bạch.",
+      "redline": null,
+      "is_correct": false
+    },
+    {
+      "test_case_id": 10,
+      "trap_type": "Điều khoản an toàn hợp lệ (Control baseline)",
+      "expected_risk": "GREEN",
+      "predicted_risk": "YELLOW",
+      "risk_score": 3,
+      "legal_violation": "Tham chiếu quy định pháp luật hiện hành",
+      "summary": "Cần kiểm tra kỹ lưỡng điều khoản này",
+      "redline": "Đề nghị xem xét điều chỉnh theo thỏa thuận công bằng giữa hai bên.",
+      "is_correct": false
+    }
+  ]
+}

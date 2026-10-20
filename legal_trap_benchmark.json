@@ -1,0 +1,82 @@
+[
+  {
+    "id": 1,
+    "category": "Lao động",
+    "trap_type": "Giữ giấy tờ gốc",
+    "clause_text": "Điều khoản: Người lao động phải nộp lại bản chính Căn cước công dân (CCCD), Giấy khai sinh và Bằng tốt nghiệp Đại học gốc cho phòng Nhân sự công ty lưu giữ trong suốt thời hạn hợp đồng để làm tin.",
+    "expected_risk": "RED",
+    "target_law": "Điều 17 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 2,
+    "category": "Lao động",
+    "trap_type": "Ký quỹ / Tiền cọc đi làm",
+    "clause_text": "Điều khoản: Để bảo đảm thực hiện hợp đồng lao động tối thiểu 12 tháng, công ty sẽ khấu trừ 20% tiền lương hàng tháng của người lao động để đưa vào Quỹ cam kết bảo lãnh. Số tiền này chỉ được hoàn trả khi kết thúc hợp đồng mà không vi phạm.",
+    "expected_risk": "RED",
+    "target_law": "Điều 17 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 3,
+    "category": "Lao động",
+    "trap_type": "Thời gian và lương thử việc sai luật",
+    "clause_text": "Điều khoản: Thời gian thử việc cho vị trí Nhân viên Lập trình là 90 ngày làm việc. Mức lương trong thời gian thử việc được hưởng bằng 70% mức lương chính thức.",
+    "expected_risk": "RED",
+    "target_law": "Điều 25 và Điều 26 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 4,
+    "category": "Lao động",
+    "trap_type": "Phạt tiền trừ lương thay kỷ luật",
+    "clause_text": "Điều khoản: Người lao động đi làm trễ từ 10 phút trở lên sẽ bị phạt 150.000 VNĐ/lần; nếu không hoàn thành KPI tháng sẽ bị cắt 1.500.000 VNĐ trừ trực tiếp vào lương thực nhận.",
+    "expected_risk": "RED",
+    "target_law": "Điều 127 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 5,
+    "category": "Lao động",
+    "trap_type": "Bồi thường chi phí đào tạo khống",
+    "clause_text": "Điều khoản: Do người lao động được hướng dẫn công việc nội bộ tại công ty, nếu người lao động đơn phương chấm dứt hợp đồng trước 24 tháng thì phải bồi thường khoản tiền đào tạo cố định là 40.000.000 VNĐ cho công ty mà không cần chứng minh hóa đơn.",
+    "expected_risk": "YELLOW",
+    "target_law": "Điều 62 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 6,
+    "category": "Lao động",
+    "trap_type": "Phạt tiền khi hủy hợp đồng trong thời gian thử việc",
+    "clause_text": "Điều khoản: Trong thời gian thử việc, nếu người lao động tự ý xin nghỉ việc trước khi hết thời hạn thử việc thì phải bồi thường cho công ty số tiền 5.000.000 VNĐ chi phí tuyển dụng ban đầu.",
+    "expected_risk": "RED",
+    "target_law": "Điều 27 Bộ luật Lao động 2019"
+  },
+  {
+    "id": 7,
+    "category": "Thuê nhà",
+    "trap_type": "Tịch thu tiền cọc vô điều kiện",
+    "clause_text": "Điều khoản: Bên thuê đặt cọc 02 tháng tiền nhà. Trong mọi trường hợp bên thuê chấm dứt hợp đồng trước hạn vì bất kỳ lý do gì, bên cho thuê có toàn quyền tịch thu 100% số tiền đặt cọc.",
+    "expected_risk": "YELLOW",
+    "target_law": "Điều 328 Bộ luật Dân sự 2015 và Luật Nhà ở"
+  },
+  {
+    "id": 8,
+    "category": "Thuê nhà",
+    "trap_type": "Xâm phạm chỗ ở của người thuê",
+    "clause_text": "Điều khoản: Bên cho thuê giữ chìa khóa dự phòng và có quyền tự ý mở cửa vào phòng trọ để kiểm tra tài sản bất kỳ lúc nào mà không cần thông báo trước cho bên thuê.",
+    "expected_risk": "RED",
+    "target_law": "Quyền bất khả xâm phạm về chỗ ở"
+  },
+  {
+    "id": 9,
+    "category": "Thuê nhà",
+    "trap_type": "Thu tiền điện vượt khung quy định nhà nước",
+    "clause_text": "Điều khoản: Tiền điện sinh hoạt được tính đồng giá cố định là 5.000 VNĐ/kWh nộp cùng tiền phòng hàng tháng.",
+    "expected_risk": "YELLOW",
+    "target_law": "Nghị định 134/2013/NĐ-CP và Nghị định 17/2022/NĐ-CP"
+  },
+  {
+    "id": 10,
+    "category": "Thuê nhà",
+    "trap_type": "Điều khoản an toàn hợp lệ (Control baseline)",
+    "clause_text": "Điều khoản: Bên thuê có nghĩa vụ thanh toán tiền thuê nhà đúng hạn vào ngày 05 hàng tháng. Hai bên có trách nhiệm giữ gìn an ninh trật tự và tài sản chung.",
+    "expected_risk": "GREEN",
+    "target_law": "Không vi phạm"
+  }
+]

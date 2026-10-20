@@ -1,33 +1,53 @@
-﻿# Local RAG Chatbot with Hybrid Search & Agentic Routing
+# VietGuard AI: Automated Legal Contract Risk Auditor & Redlining Copilot
 
-A session-based RAG chatbot built with Flask, LangChain, and Ollama. It runs entirely locally for data privacy and features an intelligent routing system to seamlessly switch between document retrieval, web search, and direct conversation.
+VietGuard AI is a domain-specific LegalTech system designed to protect Vietnamese employees, tenants, and freelancers from unlawful, predatory, or high-risk clauses in contracts (e.g., labor contracts, residential lease agreements, NDA/training bonds).
 
-## Features
+Instead of generic document Q&A, VietGuard AI functions as an end-to-end contract auditor. It segments contracts clause-by-clause, cross-references each clause against Vietnamese statutory laws via Hybrid Search, detects illegal traps, cites governing legal articles, and generates counter-clauses (redline suggestions) for negotiation.
 
-* **Hybrid Search Retrieval**: Combines semantic search (ChromaDB) and sparse keyword search (BM25) via an Ensemble Retriever. This solves the common issue of vector databases failing at exact keyword matches, ensuring high accuracy when retrieving specific product codes or financial figures.
-* **Agentic Query Routing**: Uses the local LLM to classify user intents and route queries to either `RETRIEVE` (document search), `WEB_SEARCH` (DuckDuckGo integration for real-time information), or `DIRECT` (general chat).
-* **Automated Evaluation Pipeline**: Includes a standalone `evaluate.py` script implementing an LLM-as-a-judge framework. It automatically benchmarks Context Relevance, Faithfulness, and Answer Relevance against a ground-truth dataset (e.g., corporate annual reports).
-* **Contextual Memory**: Maintains chat history per session and leverages a rephrase chain to convert follow-up questions into standalone queries, optimizing retrieval performance.
+## Core Capabilities
+
+* **Structure-Aware Legal Clause Segmentation**: Unlike standard character-based chunking that breaks sentences arbitrarily, the custom `LegalClauseParser` uses legal syntax boundaries (`Điều [0-9]+`, `Khoản`) to preserve each clause intact with its complete legal context.
+* **Hybrid Legal Knowledge Base**: Integrates core Vietnamese statutory documents (Labor Code 2019, Civil Code 2015, Housing Law 2023) using an `EnsembleRetriever` combining dense vector search (ChromaDB + `nomic-embed-text`) and sparse keyword matching (BM25). This ensures exact matching of specific legal terms and statutory articles.
+* **Risk Categorization & Redline Generation**: Classifies clauses into three risk tiers:
+  * RED: Unlawful or legally void provisions (e.g., withholding original citizen ID/diplomas, illegal wage deductions, excessive probation periods, unauthorized premises entry).
+  * YELLOW: Highly one-sided or predatory terms (e.g., unconditional 100% deposit forfeiture, unverified internal training penalties).
+  * GREEN: Compliant, standard legal terms.
+  Generates negotiation-ready counter-proposals that users can copy directly to negotiate with employers or landlords.
+* **Interactive Legal Assistant**: Embedded session-based RAG chat allowing users to ask contextual follow-up questions regarding potential litigation risks and statutory rights.
+* **Automated Evaluation Benchmark**: Includes `evaluate_legal_benchmark.py` running against a curated test suite of 10 real-world contract traps, achieving 100% recall on severe illegal clauses (RED).
+
+## System Architecture
+
+The pipeline processes contracts through five stages:
+1. Ingestion: Accepts PDF uploads, plain text files, or raw text input.
+2. Clause Parsing: Isolates each legal provision while maintaining structural metadata.
+3. Statutory Retrieval: Executes parallel dense and sparse retrieval across indexed Vietnamese laws.
+4. Risk Assessment: Evaluates compliance, cites governing articles, and drafts alternative text.
+5. Interactive Q&A: In-memory ChromaDB vectorstore per session for multi-turn advisory chat.
 
 ## Tech Stack
 
-* **Backend**: Flask
-* **Orchestration**: LangChain (LCEL architecture)
-* **Local LLM & Embeddings**: Ollama (`qwen2.5:3b` for generation/routing, `nomic-embed-text` for vector embeddings)
-* **Database**: ChromaDB (persistent storage per session)
-* **Keyword Search**: rank_bm25
-* **Web Search**: DuckDuckGo API
+* Backend: Flask, Flask-CORS
+* Orchestration: LangChain (LCEL)
+* Local LLM & Embeddings: Ollama (`qwen2.5:3b`, `nomic-embed-text`)
+* Vector Store: ChromaDB (persistent legal knowledge base and ephemeral session stores)
+* Sparse Keyword Search: rank_bm25
+* Document Parsing: pypdf, regex-based statutory tokenizer
+* Frontend: HTML5, Tailwind CSS, Lucide Icons
 
-## Setup Instructions
+## Setup & Installation
 
-1. Install Python 3.11 or 3.12 (Highly recommended for optimal compatibility with underlying C-extensions on Windows).
-2. Install [Ollama](https://ollama.com/) and download the required models by running:
+1. Prerequisites:
+Ensure Python 3.11 is installed. Download and install [Ollama](https://ollama.com/).
+
+2. Download required local models:
 ```bash
+ollama serve
 ollama pull qwen2.5:3b
 ollama pull nomic-embed-text
 ```
-3. Clone the repository and navigate into it.
-4. Create a virtual environment and install the dependencies:
+
+3. Setup virtual environment:
 ```bash
 python -m venv venv
 venv\Scripts\activate
@@ -36,16 +56,17 @@ pip install -r requirements.txt
 
 ## Running the Application
 
-Start the backend server:
+1. Start the Flask server:
 ```bash
 python app.py
 ```
-Then, simply open the `index.html` file in your web browser to access the chat interface.
 
-## Running the Evaluation
+2. Open `index.html` or navigate to `http://localhost:5000` in your web browser. You can click on the pre-loaded sample contracts (e.g., Labor Contract with Illegal Deductions, Rental Agreement with Deposit Traps) to test the analysis immediately.
 
-To benchmark the RAG pipeline using the included sample corporate dataset, run:
+## Running the Benchmark Evaluation
+
+To reproduce the benchmark evaluation and verify model recall on real-world contract traps:
 ```bash
-python evaluate.py
+python evaluate_legal_benchmark.py
 ```
-The script will output the evaluation process to the console and save detailed metrics to `evaluation_results.json`.
+This runs the test suite in `legal_trap_benchmark.json` and exports full precision and recall metrics to `legal_benchmark_results.json`.
